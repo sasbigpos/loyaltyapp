@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: process.env.VITE_BASE_URL || '/loyalcore/member/',
+  // Use '/' for local dev, GitHub Pages path only during CI build
+  base: process.env.VITE_BASE_URL || '/',
   server: {
     port: 5174,
   },

@@ -1,45 +1,8 @@
 rules_version = '2';
-
-// ─── LOYALCORE Firestore Security Rules ──────────────────────────────────────
-//
-// Collection structure:
-//   loyalcore/{key}  — shared app state documents (members, tiers, refLevels)
-//
-// Access model:
-//   • Anyone can READ (members need to load their own data without auth)
-//   • Anyone can WRITE (no auth layer in this version — see note below)
-//
-// ⚠️  PRODUCTION NOTE:
-//   These rules are intentionally open for the demo. Before going live with
-//   real customer data, add Firebase Authentication and restrict writes to
-//   authenticated admin users only. Example:
-//
-//     allow write: if request.auth != null
-//                  && request.auth.token.admin == true;
-//
-//   See FIREBASE_SETUP.md → Step 6 for hardening instructions.
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // All LOYALCORE shared-state documents
-    match /loyalcore/{key} {
-      // Anyone can read — members load their data on login
-      allow read: if true;
-
-      // Anyone can write — lock this down once you add auth
-      allow write: if true;
-
-      // Validate that every document has a 'value' field (string)
-      // and an 'updatedAt' timestamp
-      allow create, update: if request.resource.data.keys().hasAll(['value'])
-                            && request.resource.data.value is string
-                            && request.resource.data.value.size() < 1048576; // 1 MB max
-    }
-
-    // Deny access to any other collections
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }
