@@ -31,7 +31,7 @@ jobs:
       - name: Build
         working-directory: apps/admin
         env:
-          VITE_BASE_URL: /loyalcore/admin/
+          VITE_BASE_URL: /loyaltyapp/admin/
           VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -61,7 +61,7 @@ jobs:
       - name: Build
         working-directory: apps/member
         env:
-          VITE_BASE_URL: /loyalcore/member/
+          VITE_BASE_URL: /loyaltyapp/member/
           VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
