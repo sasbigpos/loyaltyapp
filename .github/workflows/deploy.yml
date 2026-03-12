@@ -1,0 +1,104 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-admin:
+    name: Build Admin Portal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/admin/package-lock.json
+      - name: Install
+        working-directory: apps/admin
+        run: npm ci
+      - name: Build
+        working-directory: apps/admin
+        env:
+          VITE_BASE_URL: /loyalcore/admin/
+          VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: apps/admin/dist
+          retention-days: 1
+
+  build-member:
+    name: Build Member Portal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/member/package-lock.json
+      - name: Install
+        working-directory: apps/member
+        run: npm ci
+      - name: Build
+        working-directory: apps/member
+        env:
+          VITE_BASE_URL: /loyalcore/member/
+          VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: member-dist
+          path: apps/member/dist
+          retention-days: 1
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [build-admin, build-member]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: admin-dist
+          path: ./site/admin
+      - uses: actions/download-artifact@v4
+        with:
+          name: member-dist
+          path: ./site/member
+      - name: Create root landing page
+        run: |
+          cat > ./site/index.html << 'EOF'
+          <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>LOYALCORE</title><style>*{box-sizing:border-box;margin:0;padding:0}body{min-height:100vh;background:#06080f;display:flex;align-items:center;justify-content:center;font-family:sans-serif;padding:24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:540px;width:100%;margin-top:32px}a{display:block;padding:28px 24px;border-radius:16px;text-decoration:none;transition:all .2s}.admin{background:#0e1420;border:1px solid #1e2535;color:#e8eaf0}.admin:hover{border-color:#f59e0b44;transform:translateY(-3px)}.member{background:#14100a;border:1px solid #3a2a12;color:#f7f2eb}.member:hover{border-color:#f5c84266;transform:translateY(-3px)}.icon{font-size:32px;margin-bottom:12px}.label{font-size:18px;font-weight:700;margin-bottom:4px}.sub{font-size:12px;opacity:.5}.badge{display:inline-block;background:#0d2a18;color:#4ade80;border:1px solid #1a5a2a;border-radius:99px;font-size:10px;padding:2px 8px;margin-top:8px;font-weight:600}h1{font-size:40px;font-weight:900;background:linear-gradient(135deg,#f59e0b,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-1px}p{color:#4a5566;font-size:13px;letter-spacing:2px;text-transform:uppercase;margin-top:6px}@media(max-width:480px){.grid{grid-template-columns:1fr}}</style></head><body><div style="text-align:center;max-width:580px;width:100%"><h1>LOYALCORE</h1><p>Unified Loyalty Platform</p><div class="grid"><a href="./admin/" class="admin"><div class="icon">⚙️</div><div class="label">Admin Portal</div><div class="sub">Manage members & points</div><div class="badge">● Firebase Live</div></a><a href="./member/" class="member"><div class="icon">🥇</div><div class="label">Member Portal</div><div class="sub">View rewards & network</div><div class="badge">● Firebase Live</div></a></div></div></body></html>
+          EOF
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+      - id: deployment
+        uses: actions/deploy-pages@v4
