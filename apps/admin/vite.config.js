@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // Use '/' for local dev, GitHub Pages path only during CI build
-  base: process.env.VITE_BASE_URL || '/',
+  base: '/',
   server: {
     port: 5173,
   },

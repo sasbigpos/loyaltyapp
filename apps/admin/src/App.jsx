@@ -93,60 +93,69 @@ function SyncDot({syncing}){
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function AdminApp() {
-  const [members,   setMembersState]   = useState([]);
-  const [tiers,     setTiersState]     = useState([]);
-  const [refLevels, setRefState]       = useState([]);
+  const [members,   setMembersState]   = useState(SEED_MEMBERS);
+  const [tiers,     setTiersState]     = useState(DEFAULT_TIERS);
+  const [refLevels, setRefState]       = useState(DEFAULT_REF);
   const [view,      setView]           = useState("dashboard");
   const [selId,     setSelId]          = useState(null);
   const [toast,     setToast]          = useState(null);
-  const [loading,   setLoading]        = useState(true);
+  const [loading,   setLoading]        = useState(false);
   const [syncing,   setSyncing]        = useState(false);
 
   const showToast = (msg,type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
 
-  // ── Initial load + real-time subscriptions ─────────────────────────────────
+  // ── Load from storage + subscribe ──────────────────────────────────────────
   useEffect(()=>{
     let unsubs = [];
+    let done = false;
 
-    const bootstrap = async () => {
-      // 1. One-shot load — write defaults to Firestore on first run
+    // Safety net: always show the app within 2 seconds no matter what
+    const safetyTimer = setTimeout(() => {
+      if (!done) { done = true; setLoading(false); }
+    }, 2000);
+
+    const run = async () => {
       try {
+        const timeout = (ms) => new Promise(r => setTimeout(r, ms));
+        const safeGet = (key) => Promise.race([
+          window.storage.get(key, true).catch(()=>null),
+          timeout(2000).then(()=>null)
+        ]);
         const [mr,tr,rr] = await Promise.all([
-          window.storage.get(KEYS.members,  true).catch(()=>null),
-          window.storage.get(KEYS.tiers,    true).catch(()=>null),
-          window.storage.get(KEYS.refLevels,true).catch(()=>null),
+          safeGet(KEYS.members),
+          safeGet(KEYS.tiers),
+          safeGet(KEYS.refLevels),
         ]);
         const members   = mr ? JSON.parse(mr.value) : SEED_MEMBERS;
         const tiers     = tr ? JSON.parse(tr.value) : DEFAULT_TIERS;
         const refLevels = rr ? JSON.parse(rr.value) : DEFAULT_REF;
-        // Seed Firestore on very first run so Member app can read data immediately
-        if (!mr) await window.storage.set(KEYS.members,   JSON.stringify(members),   true).catch(()=>{});
-        if (!tr) await window.storage.set(KEYS.tiers,     JSON.stringify(tiers),     true).catch(()=>{});
-        if (!rr) await window.storage.set(KEYS.refLevels, JSON.stringify(refLevels), true).catch(()=>{});
         setMembersState(members);
         setTiersState(tiers);
         setRefState(refLevels);
-      } catch {
-        setMembersState(SEED_MEMBERS);
-        setTiersState(DEFAULT_TIERS);
-        setRefState(DEFAULT_REF);
+        // Write defaults in background, never awaited
+        if (!mr) window.storage.set(KEYS.members,   JSON.stringify(members),   true).catch(()=>{});
+        if (!tr) window.storage.set(KEYS.tiers,     JSON.stringify(tiers),     true).catch(()=>{});
+        if (!rr) window.storage.set(KEYS.refLevels, JSON.stringify(refLevels), true).catch(()=>{});
+      } catch(e) {
+        console.error('Load error:', e);
       }
-      setLoading(false);
+      if (!done) { done = true; clearTimeout(safetyTimer); setLoading(false); }
 
-      // 2. Subscribe to real-time updates (Firebase onSnapshot)
-      //    Falls back silently if running in Claude artifact sandbox.
-      const sub = await getSubscriber();
-      if (sub) {
-        unsubs = [
-          sub(KEYS.members,   v => setMembersState(JSON.parse(v))),
-          sub(KEYS.tiers,     v => setTiersState(JSON.parse(v))),
-          sub(KEYS.refLevels, v => setRefState(JSON.parse(v))),
-        ];
-      }
+      // Subscribe to real-time updates
+      try {
+        const sub = await getSubscriber();
+        if (sub) {
+          unsubs = [
+            sub(KEYS.members,   v => setMembersState(JSON.parse(v))),
+            sub(KEYS.tiers,     v => setTiersState(JSON.parse(v))),
+            sub(KEYS.refLevels, v => setRefState(JSON.parse(v))),
+          ];
+        }
+      } catch(e) { console.error('Subscribe error:', e); }
     };
 
-    bootstrap();
-    return () => unsubs.forEach(fn => fn && fn());
+    run();
+    return () => { unsubs.forEach(fn => fn && fn()); clearTimeout(safetyTimer); };
   },[]);
 
   // Persist helpers (write-through)
