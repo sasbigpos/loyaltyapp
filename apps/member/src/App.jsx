@@ -106,14 +106,16 @@ export default function MemberApp(){
     let unsubs = [];
 
     const bootstrap = async () => {
-      // 1. One-shot initial load
+      // 1. One-shot initial load — use defaults if Firestore is empty
       try {
         const [mr,tr,rr]=await Promise.all([
           window.storage.get(KEYS.members,  true).catch(()=>null),
           window.storage.get(KEYS.tiers,    true).catch(()=>null),
           window.storage.get(KEYS.refLevels,true).catch(()=>null),
         ]);
-        if(mr) setMembersState(JSON.parse(mr.value));
+        // If Firestore has data, use it; otherwise fall back to defaults
+        // (Admin app will seed Firestore on its first run)
+        setMembersState(mr ? JSON.parse(mr.value) : []);
         if(tr) setTiers(JSON.parse(tr.value));
         if(rr) setRefLevels(JSON.parse(rr.value));
       } catch {}

@@ -109,16 +109,23 @@ export default function AdminApp() {
     let unsubs = [];
 
     const bootstrap = async () => {
-      // 1. One-shot load to populate state immediately
+      // 1. One-shot load — write defaults to Firestore on first run
       try {
         const [mr,tr,rr] = await Promise.all([
           window.storage.get(KEYS.members,  true).catch(()=>null),
           window.storage.get(KEYS.tiers,    true).catch(()=>null),
           window.storage.get(KEYS.refLevels,true).catch(()=>null),
         ]);
-        setMembersState(mr ? JSON.parse(mr.value) : SEED_MEMBERS);
-        setTiersState(  tr ? JSON.parse(tr.value) : DEFAULT_TIERS);
-        setRefState(    rr ? JSON.parse(rr.value) : DEFAULT_REF);
+        const members   = mr ? JSON.parse(mr.value) : SEED_MEMBERS;
+        const tiers     = tr ? JSON.parse(tr.value) : DEFAULT_TIERS;
+        const refLevels = rr ? JSON.parse(rr.value) : DEFAULT_REF;
+        // Seed Firestore on very first run so Member app can read data immediately
+        if (!mr) await window.storage.set(KEYS.members,   JSON.stringify(members),   true).catch(()=>{});
+        if (!tr) await window.storage.set(KEYS.tiers,     JSON.stringify(tiers),     true).catch(()=>{});
+        if (!rr) await window.storage.set(KEYS.refLevels, JSON.stringify(refLevels), true).catch(()=>{});
+        setMembersState(members);
+        setTiersState(tiers);
+        setRefState(refLevels);
       } catch {
         setMembersState(SEED_MEMBERS);
         setTiersState(DEFAULT_TIERS);
