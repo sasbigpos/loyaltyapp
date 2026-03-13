@@ -272,7 +272,12 @@ export default function AdminApp() {
         ))}
         <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid #1a2030"}}>
           <div style={{fontSize:11,color:"#2a3a4a",textAlign:"center",marginBottom:8}}>{members.length} Members Enrolled</div>
-          <div style={{fontSize:10,color:syncing?"#f59e0b":"#2a4a2a",textAlign:"center",fontWeight:600}}>{syncing?"⟳ Syncing…":"✓ Data synced"}</div>
+          <div style={{fontSize:10,color:syncing?"#f59e0b":"#2a4a2a",textAlign:"center",fontWeight:600,marginBottom:14}}>{syncing?"⟳ Syncing…":"✓ Data synced"}</div>
+          <button onClick={()=>setAuthed(false)} style={{width:"100%",padding:"9px",background:"#1a0e0e",border:"1px solid #3a1a1a",borderRadius:10,color:"#cc6666",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",letterSpacing:.3,transition:"all .2s"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="#2a1010";e.currentTarget.style.color="#ff8888";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="#1a0e0e";e.currentTarget.style.color="#cc6666";}}>
+            ⎋ Logout
+          </button>
         </div>
       </div>
 
