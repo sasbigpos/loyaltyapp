@@ -293,18 +293,7 @@ function LoginScreen({members,tiers,onLogin}){
         <input value={phone} onChange={e=>{setPhone(fmtPhone(e.target.value));setErr("");}} onKeyDown={e=>e.key==="Enter"&&submitPhone()} placeholder="012-3456-789"
           style={{width:"100%",background:"#0d0a06",border:"1px solid #3a2a12",borderRadius:12,color:"#f7f2eb",padding:"14px 16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",transition:"border-color .2s",marginBottom:8}}/>
         {err&&<div style={{color:"#f87171",fontSize:12,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>{err}</div>}
-        <div style={{marginBottom:20}}>
-          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#4a3a1a",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>Quick demo login</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {members.slice(0,4).map(m=>{const tier=getTier(m.points,tiers);return(
-              <button key={m.id} onClick={()=>{setPhone(m.phone);setErr("");}} style={{background:"#1a1408",border:"1px solid #3a2a12",color:"#8a6a3a",borderRadius:8,padding:"6px 12px",fontSize:11,fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor=tier.color+"66";e.currentTarget.style.color=tier.color;}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="#3a2a12";e.currentTarget.style.color="#8a6a3a";}}>
-                {tier.icon} {m.name.split(" ")[0]}
-              </button>
-            );})}
-          </div>
-        </div>
+
         <button onClick={submitPhone} style={{width:"100%",padding:"16px",background:"linear-gradient(135deg,#f5c842,#f59e0b)",borderRadius:14,fontSize:15,fontWeight:700,color:"#1a1208",fontFamily:"'DM Sans',sans-serif",letterSpacing:.3,boxShadow:"0 4px 20px #f5c84244",border:"none",transition:"all .2s"}}>
           Continue →
         </button>
