@@ -51,7 +51,7 @@ function getDownline(members,rootId,maxDepth){
 }
 
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
-const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels" };
+const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw" };
 
 async function loadAll() {
   try {
@@ -94,6 +94,8 @@ function SyncDot({syncing}){
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function AdminApp() {
   const [authed,    setAuthed]          = useState(false);
+  const [adminPw,   setAdminPw]        = useState(null);
+  const [pwReady,   setPwReady]        = useState(false);
   const [members,   setMembersState]   = useState(SEED_MEMBERS);
   const [tiers,     setTiersState]     = useState(DEFAULT_TIERS);
   const [refLevels, setRefState]       = useState(DEFAULT_REF);
@@ -112,7 +114,7 @@ export default function AdminApp() {
 
     // Safety net: always show the app within 2 seconds no matter what
     const safetyTimer = setTimeout(() => {
-      if (!done) { done = true; setLoading(false); }
+      if (!done) { done = true; setLoading(false); setPwReady(true); }
     }, 2000);
 
     const run = async () => {
@@ -122,11 +124,14 @@ export default function AdminApp() {
           window.storage.get(key, true).catch(()=>null),
           timeout(2000).then(()=>null)
         ]);
-        const [mr,tr,rr] = await Promise.all([
+        const [mr,tr,rr,pr] = await Promise.all([
           safeGet(KEYS.members),
           safeGet(KEYS.tiers),
           safeGet(KEYS.refLevels),
+          safeGet(KEYS.adminPw),
         ]);
+        if(pr) setAdminPw(pr.value);
+        setPwReady(true);
         const members   = mr ? JSON.parse(mr.value) : SEED_MEMBERS;
         const tiers     = tr ? JSON.parse(tr.value) : DEFAULT_TIERS;
         const refLevels = rr ? JSON.parse(rr.value) : DEFAULT_REF;
@@ -199,7 +204,15 @@ export default function AdminApp() {
     return newM;
   };
 
-  if(!authed) return <AdminLogin onAuth={()=>setAuthed(true)}/>;
+  if(!pwReady) return (
+    <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:16}}>LOYALCORE</div>
+        <div style={{width:32,height:32,border:"3px solid #1e2535",borderTop:"3px solid #f59e0b",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
+      </div>
+    </div>
+  );
+  if(!authed) return <AdminLogin storedPw={adminPw} onAuth={()=>setAuthed(true)}/>;
 
   if(loading) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -211,7 +224,7 @@ export default function AdminApp() {
     </div>
   );
 
-  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast};
+  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw};
 
   return (
     <div style={{minHeight:"100vh",background:"#080c12",color:"#e8eaf0",fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex"}}>
@@ -283,11 +296,11 @@ export default function AdminApp() {
 
 
 // ─── ADMIN LOGIN ─────────────────────────────────────────────────────────────
-function AdminLogin({onAuth}){
+function AdminLogin({onAuth,storedPw}){
   const [pw,setPw]=useState("");
   const [err,setErr]=useState("");
   const [show,setShow]=useState(false);
-  const ADMIN_PW = localStorage.getItem("lc_admin_pw") || import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
+  const ADMIN_PW = storedPw || import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
   const submit=()=>{
     if(pw===ADMIN_PW){onAuth();}
     else{setErr("Incorrect password. Please try again.");setPw("");}
@@ -593,17 +606,24 @@ function Config({ctx}){
   const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
   const [pwErr,setPwErr]=useState("");
   const [pwShow,setPwShow]=useState({current:false,next:false,confirm:false});
+  const [pwSaving,setPwSaving]=useState(false);
   const upT=(id,f,v)=>setTiers(p=>p.map(t=>t.id===id?{...t,[f]:f==="minPoints"||f==="multiplier"?Number(v):v}:t));
   const upR=(lv,f,v)=>setRefLevels(p=>p.map(r=>r.level===lv?{...r,[f]:f==="overridePercent"?Number(v):v}:r));
 
-  const changePw=()=>{
-    const stored=localStorage.getItem("lc_admin_pw") || import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
-    if(pwForm.current!==stored){setPwErr("Current password is incorrect.");return;}
+  const changePw=async()=>{
+    const {adminPw:storedPw,setAdminPw}=ctx;
+    const current=storedPw || import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
+    if(pwForm.current!==current){setPwErr("Current password is incorrect.");return;}
     if(pwForm.next.length<4){setPwErr("New password must be at least 4 characters.");return;}
     if(pwForm.next!==pwForm.confirm){setPwErr("Passwords do not match.");return;}
-    localStorage.setItem("lc_admin_pw", pwForm.next);
-    setPwForm({current:"",next:"",confirm:""});setPwErr("");
-    showToast("Password changed successfully!");
+    setPwSaving(true);
+    try{
+      await window.storage.set(KEYS.adminPw, pwForm.next, true);
+      setAdminPw(pwForm.next);
+      setPwForm({current:"",next:"",confirm:""});setPwErr("");
+      showToast("Password changed successfully!");
+    }catch(e){setPwErr("Failed to save — check Firebase connection.");}
+    setPwSaving(false);
   };
 
   return <div className="fi">
@@ -666,7 +686,7 @@ function Config({ctx}){
         </div>
       ))}
       {pwErr&&<div style={{color:"#f87171",fontSize:13,background:"#2a0d0d",border:"1px solid #5a1a1a",borderRadius:8,padding:"10px 14px"}}>{pwErr}</div>}
-      <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px"}}>🔑 Change Password</button>
+      <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px",opacity:pwSaving?0.6:1}} disabled={pwSaving}>{pwSaving?"Saving…":"🔑 Change Password"}</button>
     </div>}
   </div>;
 }
