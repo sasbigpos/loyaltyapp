@@ -287,7 +287,7 @@ function AdminLogin({onAuth}){
   const [pw,setPw]=useState("");
   const [err,setErr]=useState("");
   const [show,setShow]=useState(false);
-  const ADMIN_PW = import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
+  const ADMIN_PW = localStorage.getItem("lc_admin_pw") || import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
   const submit=()=>{
     if(pw===ADMIN_PW){onAuth();}
     else{setErr("Incorrect password. Please try again.");setPw("");}
@@ -590,15 +590,29 @@ function Profile({ctx,memberId,onBack}){
 function Config({ctx}){
   const {tiers,setTiers,refLevels,setRefLevels,showToast}=ctx;
   const [tab,setTab]=useState("tiers");
+  const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
+  const [pwErr,setPwErr]=useState("");
+  const [pwShow,setPwShow]=useState({current:false,next:false,confirm:false});
   const upT=(id,f,v)=>setTiers(p=>p.map(t=>t.id===id?{...t,[f]:f==="minPoints"||f==="multiplier"?Number(v):v}:t));
   const upR=(lv,f,v)=>setRefLevels(p=>p.map(r=>r.level===lv?{...r,[f]:f==="overridePercent"?Number(v):v}:r));
+
+  const changePw=()=>{
+    const stored=localStorage.getItem("lc_admin_pw") || import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
+    if(pwForm.current!==stored){setPwErr("Current password is incorrect.");return;}
+    if(pwForm.next.length<4){setPwErr("New password must be at least 4 characters.");return;}
+    if(pwForm.next!==pwForm.confirm){setPwErr("Passwords do not match.");return;}
+    localStorage.setItem("lc_admin_pw", pwForm.next);
+    setPwForm({current:"",next:"",confirm:""});setPwErr("");
+    showToast("Password changed successfully!");
+  };
+
   return <div className="fi">
     <div style={{marginBottom:24}}>
       <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Configuration</h1>
       <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
     </div>
-    <div style={{display:"flex",gap:8,marginBottom:22}}>
-      {["tiers","referral"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{t==="tiers"?"🥇 Tiers":"◈ Referral Overrides"}</button>)}
+    <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
+      {["tiers","referral","password"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":"🔑 Admin Password"}</button>)}
     </div>
     {tab==="tiers"&&<div className="si" style={{display:"flex",flexDirection:"column",gap:14}}>
       {tiers.map(t=><div key={t.id} className="card" style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto",gap:14,alignItems:"end"}}>
@@ -629,6 +643,30 @@ function Config({ctx}){
         <button className="btn-g" onClick={()=>setRefLevels(p=>[...p,{level:p.length+1,label:`Level ${p.length+1}`,overridePercent:1,color:"#888"}])}>⊕ Add Level</button>
         <button className="btn" onClick={()=>showToast("Referral config saved & synced!")}>Save Config</button>
       </div>
+    </div>}
+    {tab==="password"&&<div className="si card" style={{padding:"28px 30px",maxWidth:460,display:"flex",flexDirection:"column",gap:20}}>
+      <div>
+        <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Change Admin Password</div>
+        <div style={{fontSize:13,color:"#445566"}}>Password is stored in your browser. Default is <span style={{color:"#f59e0b",fontWeight:600}}>admin1234</span>.</div>
+      </div>
+      {[
+        {key:"current", label:"Current Password"},
+        {key:"next",    label:"New Password"},
+        {key:"confirm", label:"Confirm New Password"},
+      ].map(({key,label})=>(
+        <div key={key}>
+          <label className="lbl">{label}</label>
+          <div style={{position:"relative"}}>
+            <input type={pwShow[key]?"text":"password"} className="inp" placeholder="••••••••" value={pwForm[key]}
+              onChange={e=>{setPwForm(f=>({...f,[key]:e.target.value}));setPwErr("");}}
+              onKeyDown={e=>e.key==="Enter"&&changePw()}
+              style={{paddingRight:44}}/>
+            <button onClick={()=>setPwShow(s=>({...s,[key]:!s[key]}))} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#445566",cursor:"pointer",fontSize:16,padding:2}}>{pwShow[key]?"🙈":"👁"}</button>
+          </div>
+        </div>
+      ))}
+      {pwErr&&<div style={{color:"#f87171",fontSize:13,background:"#2a0d0d",border:"1px solid #5a1a1a",borderRadius:8,padding:"10px 14px"}}>{pwErr}</div>}
+      <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px"}}>🔑 Change Password</button>
     </div>}
   </div>;
 }
