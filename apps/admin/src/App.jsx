@@ -265,7 +265,7 @@ export default function AdminApp() {
           </div>
           <div style={{fontSize:9,color:"#2a3a4a",letterSpacing:2,textTransform:"uppercase"}}>Admin Portal</div>
         </div>
-        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
+        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"deduct",icon:"◇",label:"Deduct Points"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
           <div key={n.id} className={`nav${view===n.id?" on":""}`} onClick={()=>{setView(n.id);setSelId(null);}}>
             <span style={{fontSize:16}}>{n.icon}</span>{n.label}
           </div>
@@ -288,6 +288,7 @@ export default function AdminApp() {
         {view==="enroll"    && <Enroll    ctx={ctx} onDone={()=>setView("members")}/>}
         {view==="points"    && <AwardPts  ctx={ctx}/>}
         {view==="config"    && <Config    ctx={ctx}/>}
+        {view==="deduct"    && <DeductPts  ctx={ctx}/>}
         {view==="profile"   && selId && <Profile ctx={ctx} memberId={selId} onBack={()=>setView("members")}/>}
       </div>
 
@@ -605,6 +606,116 @@ function Profile({ctx,memberId,onBack}){
 }
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
+
+// ─── DEDUCT POINTS ────────────────────────────────────────────────────────────
+// Deducts points from a single member only — no referral cascade.
+function DeductPts({ctx}){
+  const {members,tiers,setMembers,showToast}=ctx;
+  const [sel,setSel]=useState("");
+  const [raw,setRaw]=useState("");
+  const [note,setNote]=useState("");
+  const [confirm,setConfirm]=useState(false);
+  const member=members.find(m=>m.id===sel);
+  const tier=member?getTier(member.points,tiers):null;
+  const pts=Math.min(parseInt(raw)||0, member?.points||0);
+  const remaining=member?member.points-pts:0;
+
+  const reset=()=>{setSel("");setRaw("");setNote("");setConfirm(false);};
+
+  const doDeduct=()=>{
+    if(!member||pts<=0)return;
+    const label=note||"Point Deduction";
+    setMembers(prev=>prev.map(m=>m.id===member.id
+      ?{...m,points:m.points-pts,transactions:[{id:genId(),pts:-pts,icon:"◇",label,date:today(),type:"redeem"},...m.transactions]}
+      :m
+    ));
+    showToast(`${pts.toLocaleString()} pts deducted from ${member.name}.`);
+    reset();
+  };
+
+  return <div className="fi" style={{maxWidth:520}}>
+    <div style={{marginBottom:28}}>
+      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Deduct Points</h1>
+      <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Deducts directly from the member only — referrals are not affected</p>
+    </div>
+
+    <div style={{background:"#1a0d0d",border:"1px solid #3a1a1a",borderRadius:12,padding:"12px 18px",marginBottom:22,display:"flex",gap:12,alignItems:"flex-start"}}>
+      <span style={{fontSize:18,flexShrink:0}}>⚠️</span>
+      <div style={{fontSize:13,color:"#aa7777",lineHeight:1.6}}>
+        This action <strong style={{color:"#ff9999"}}>only deducts from the selected member</strong>. Referral uplines are not notified and their points are not touched.
+      </div>
+    </div>
+
+    <div className="card" style={{padding:"28px 30px",display:"flex",flexDirection:"column",gap:18}}>
+      <div>
+        <label className="lbl">Select Member</label>
+        <select className="inp" value={sel} onChange={e=>{setSel(e.target.value);setConfirm(false);}}>
+          <option value="">— Choose member —</option>
+          {members.map(m=>{const t=getTier(m.points,tiers);return <option key={m.id} value={m.id}>{m.name} · {t.name} · {m.points.toLocaleString()} pts</option>;})}
+        </select>
+      </div>
+
+      {member&&<div style={{background:"#0a1020",borderRadius:10,padding:"12px 16px",border:"1px solid #1a2535",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontWeight:700,color:"#ccd",fontSize:15}}>{member.name}</div>
+          <div style={{color:"#6677aa",fontSize:12,marginTop:2}}>{member.phone}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <TierBadge tier={tier}/>
+          <div style={{fontSize:13,color:"#f59e0b",fontWeight:700,marginTop:4}}>{member.points.toLocaleString()} pts</div>
+        </div>
+      </div>}
+
+      <div>
+        <label className="lbl">Points to Deduct</label>
+        <input className="inp" type="number" min="1" max={member?.points||0} placeholder="e.g. 200"
+          value={raw} onChange={e=>{setRaw(e.target.value);setConfirm(false);}}/>
+        {member&&raw&&parseInt(raw)>member.points&&<div style={{color:"#f87171",fontSize:12,marginTop:5}}>Cannot exceed available balance of {member.points.toLocaleString()} pts</div>}
+      </div>
+
+      <div>
+        <label className="lbl">Reason <span style={{color:"#2a3a55",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label>
+        <input className="inp" placeholder="e.g. Correction, Manual adjustment" value={note} onChange={e=>setNote(e.target.value)}/>
+      </div>
+
+      {/* Preview */}
+      {member&&pts>0&&parseInt(raw)<=member.points&&<div style={{background:"#1a0d0d",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#f87171",letterSpacing:.8,marginBottom:12,textTransform:"uppercase"}}>Preview</div>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+          <span style={{color:"#aa7777",fontSize:13}}>Current Balance</span>
+          <span style={{color:"#ccd",fontWeight:600}}>{member.points.toLocaleString()} pts</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+          <span style={{color:"#aa7777",fontSize:13}}>Deduction</span>
+          <span style={{color:"#f87171",fontWeight:700}}>−{pts.toLocaleString()} pts</span>
+        </div>
+        <div style={{borderTop:"1px solid #3a1a1a",paddingTop:10,display:"flex",justifyContent:"space-between"}}>
+          <span style={{color:"#aa7777",fontSize:13}}>Remaining Balance</span>
+          <span style={{color:remaining>0?"#4ade80":"#f59e0b",fontWeight:800,fontSize:16}}>{remaining.toLocaleString()} pts</span>
+        </div>
+        <div style={{marginTop:10,fontSize:11,color:"#5a3a3a",padding:"8px 10px",background:"#0d0505",borderRadius:8}}>
+          Referral uplines: <strong style={{color:"#7a4a4a"}}>not affected</strong>
+        </div>
+      </div>}
+
+      {/* Confirm toggle */}
+      {member&&pts>0&&parseInt(raw)<=member.points&&!confirm&&
+        <button className="btn-d" onClick={()=>setConfirm(true)}>◇ Deduct {pts.toLocaleString()} pts from {member.name}</button>}
+
+      {confirm&&<div style={{background:"#1a0505",border:"1px solid #5a1a1a",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{color:"#ff9999",fontWeight:700,fontSize:14,marginBottom:8}}>⚠ Confirm Deduction</div>
+        <div style={{color:"#aa7777",fontSize:13,marginBottom:16,lineHeight:1.6}}>
+          You are about to deduct <strong style={{color:"#f87171"}}>{pts.toLocaleString()} pts</strong> from <strong style={{color:"#f87171"}}>{member.name}</strong>. This cannot be undone.
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button className="btn-d" onClick={doDeduct} style={{flex:1,fontWeight:800}}>✓ Confirm Deduct</button>
+          <button className="btn-g" onClick={()=>setConfirm(false)} style={{flex:1}}>Cancel</button>
+        </div>
+      </div>}
+    </div>
+  </div>;
+}
+
 function Config({ctx}){
   const {tiers,setTiers,refLevels,setRefLevels,showToast}=ctx;
   const [tab,setTab]=useState("tiers");
