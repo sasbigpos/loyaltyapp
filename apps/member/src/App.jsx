@@ -352,7 +352,7 @@ function Portal({member,members,tiers,refLevels,setMembers,showNotif,syncing,las
       {tab==="rewards"  && <RewardsTab  member={member} tier={tier} redeemed={redeemed} redeeming={redeeming} setRedeeming={setRedeeming} onRedeem={handleRedeem}/>}
       {tab==="referral" && <ReferralTab member={member} members={members} refLevels={refLevels} downline={downline} copied={copied} onCopy={copyRef}/>}
       {tab==="history"  && <HistoryTab  member={member} tier={tier}/>}
-      {tab==="profile"  && <ProfileTab  member={member} tier={tier} nextTier={nextTier} tiers={tiers} members={members} refLevels={refLevels} downline={downline}/>}
+      {tab==="profile"  && <ProfileTab  member={member} tier={tier} nextTier={nextTier} tiers={tiers} members={members} refLevels={refLevels} downline={downline} setMembers={setMembers} onLogout={onLogout}/>}
 
       {/* BOTTOM NAV */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(247,242,235,.96)",backdropFilter:"blur(20px)",borderTop:"1px solid #e8ddd0",padding:"10px 0 20px",display:"flex",justifyContent:"space-around",zIndex:100}}>
@@ -567,9 +567,29 @@ function HistoryTab({member,tier}){
 }
 
 // ─── PROFILE TAB ─────────────────────────────────────────────────────────────
-function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline}){
+function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMembers,onLogout}){
   const progress=nextTier?((member.points-tier.minPoints)/(nextTier.minPoints-tier.minPoints))*100:100;
   const referrer=members.find(m=>m.id===member.referredBy);
+  const [pinForm,setPinForm]=useState({current:"",next:"",confirm:""});
+  const [pinErr,setPinErr]=useState("");
+  const [pinOk,setPinOk]=useState("");
+  const [pinSaving,setPinSaving]=useState(false);
+  const [showPin,setShowPin]=useState(false);
+
+  const changePin=async()=>{
+    const currentPin=member.pin||"0000";
+    if(pinForm.current!==currentPin){setPinErr("Current PIN is incorrect.");setPinOk("");return;}
+    if(!/^\d{4}$/.test(pinForm.next)){setPinErr("New PIN must be exactly 4 digits.");setPinOk("");return;}
+    if(pinForm.next!==pinForm.confirm){setPinErr("PINs do not match.");setPinOk("");return;}
+    setPinSaving(true);
+    try{
+      await setMembers(prev=>prev.map(m=>m.id===member.id?{...m,pin:pinForm.next}:m));
+      setPinForm({current:"",next:"",confirm:""});setPinErr("");
+      setPinOk("PIN changed successfully!");
+    }catch(e){setPinErr("Failed to save. Try again.");}
+    setPinSaving(false);
+  };
+
   return <div>
     <div style={{padding:"60px 0 40px",background:"linear-gradient(160deg,#1a1208,#2a1f0e)",textAlign:"center",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 120%,${tier.color}15 0%,transparent 60%)`}}/>
@@ -578,6 +598,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline}){
       <div className="sans" style={{fontSize:12,color:tier.color,fontWeight:600,letterSpacing:1.5,textTransform:"uppercase",marginTop:4}}>{tier.name} Member</div>
       <div className="sans" style={{fontSize:12,color:"#6a5a3a",marginTop:6}}>{member.phone}</div>
     </div>
+
     <div style={{margin:"20px",background:"#fff8f0",borderRadius:20,padding:"22px",border:"1px solid #e8ddd0"}}>
       <div className="serif" style={{fontSize:18,color:"#2a1a0a",marginBottom:16}}>Tier Journey</div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
@@ -593,7 +614,8 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline}){
         <span className="sans" style={{fontSize:11,color:tier.color,fontWeight:600}}>{(nextTier.minPoints-member.points).toLocaleString()} pts away</span>
       </div><PBar value={member.points-tier.minPoints} max={nextTier.minPoints-tier.minPoints} color={tier.color} h={8}/></>}
     </div>
-    <div style={{margin:"0 20px 28px"}}>
+
+    <div style={{margin:"0 20px 16px"}}>
       <div className="serif" style={{fontSize:20,color:"#2a1a0a",marginBottom:14}}>Membership Details</div>
       {[
         {label:"Member ID",val:member.id},{label:"Total Points",val:`${member.points.toLocaleString()} pts`},
@@ -606,6 +628,50 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline}){
           <span className="sans" style={{fontSize:13,fontWeight:600,color:"#2a1a0a"}}>{r.val}</span>
         </div>
       ))}
+    </div>
+
+    {/* CHANGE PIN */}
+    <div style={{margin:"0 20px 16px",background:"#fff8f0",borderRadius:20,border:"1px solid #e8ddd0",overflow:"hidden"}}>
+      <button onClick={()=>{setShowPin(s=>!s);setPinErr("");setPinOk("");setPinForm({current:"",next:"",confirm:""}); }} 
+        style={{width:"100%",padding:"18px 22px",background:"none",border:"none",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>🔑</span>
+          <div style={{textAlign:"left"}}>
+            <div className="sans" style={{fontSize:14,fontWeight:600,color:"#2a1a0a"}}>Change PIN</div>
+            <div className="sans" style={{fontSize:11,color:"#9a8a7a"}}>Update your 4-digit login PIN</div>
+          </div>
+        </div>
+        <span style={{color:"#b8aa9a",fontSize:18,transform:showPin?"rotate(90deg)":"none",transition:"transform .2s"}}>›</span>
+      </button>
+      {showPin&&<div style={{padding:"0 22px 22px",borderTop:"1px solid #e8ddd0"}}>
+        {[
+          {key:"current",label:"Current PIN",placeholder:"Enter current PIN"},
+          {key:"next",   label:"New PIN",    placeholder:"4-digit PIN"},
+          {key:"confirm",label:"Confirm PIN",placeholder:"Repeat new PIN"},
+        ].map(({key,label,placeholder})=>(
+          <div key={key} style={{marginTop:14}}>
+            <label className="sans" style={{fontSize:11,fontWeight:600,color:"#9a8a7a",letterSpacing:.8,textTransform:"uppercase",display:"block",marginBottom:6}}>{label}</label>
+            <input type="password" inputMode="numeric" maxLength={4} placeholder={placeholder} value={pinForm[key]}
+              onChange={e=>{ setPinForm(f=>({...f,[key]:e.target.value.replace(/\D/g,"").slice(0,4)})); setPinErr(""); setPinOk(""); }}
+              onKeyDown={e=>e.key==="Enter"&&changePin()}
+              style={{width:"100%",background:"#f7f0e8",border:"1px solid #e0d4c0",borderRadius:10,color:"#2a1a0a",padding:"12px 14px",fontSize:18,fontFamily:"'DM Sans',sans-serif",letterSpacing:6,outline:"none"}}/>
+          </div>
+        ))}
+        {pinErr&&<div className="sans" style={{color:"#dc2626",fontSize:12,marginTop:10,background:"#fff0f0",borderRadius:8,padding:"8px 12px",border:"1px solid #fca5a5"}}>{pinErr}</div>}
+        {pinOk&&<div className="sans" style={{color:"#16a34a",fontSize:12,marginTop:10,background:"#f0fff4",borderRadius:8,padding:"8px 12px",border:"1px solid #86efac"}}>{pinOk}</div>}
+        <button onClick={changePin} disabled={pinSaving}
+          style={{marginTop:16,width:"100%",padding:"13px",background:`linear-gradient(135deg,${tier.color},${tier.color}cc)`,borderRadius:12,fontSize:14,fontWeight:700,color:"#1a1208",fontFamily:"'DM Sans',sans-serif",border:"none",cursor:"pointer",opacity:pinSaving?0.6:1}}>
+          {pinSaving?"Saving…":"Save New PIN"}
+        </button>
+      </div>}
+    </div>
+
+    {/* LOGOUT */}
+    <div style={{margin:"0 20px 32px"}}>
+      <button onClick={onLogout}
+        style={{width:"100%",padding:"14px",background:"#fff0f0",border:"1px solid #fca5a5",borderRadius:14,fontSize:14,fontWeight:600,color:"#dc2626",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",letterSpacing:.3}}>
+        ⎋ Logout
+      </button>
     </div>
   </div>;
 }
