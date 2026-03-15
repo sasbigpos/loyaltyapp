@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥇</text></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="LOYALCORE Member Portal — view your points, redeem rewards, and grow your network" />
     <meta name="theme-color" content="#1a1208" />
-    <!-- Mobile web app capable -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -14,8 +13,23 @@
     <title>LOYALCORE · My Membership</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: #f7f2eb; overscroll-behavior: none; }
-      #root { min-height: 100vh; min-height: 100dvh; }
+      html { height: 100%; height: -webkit-fill-available; }
+      body {
+        background: #1a1208;
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+      }
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: #f7f2eb;
+      }
+      /* Prevent double-tap zoom on buttons */
+      button, a { touch-action: manipulation; }
+      /* Smooth scrolling on iOS */
+      * { -webkit-overflow-scrolling: touch; }
     </style>
   </head>
   <body>
