@@ -153,7 +153,7 @@ export default function MemberApp(){
     <div style={{background:"#f7f2eb",minHeight:"100vh",display:"flex",justifyContent:"center"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,500;0,600;0,700;1,400;1,600&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;} ::-webkit-scrollbar{display:none;} button{cursor:pointer;border:none;} input,select{outline:none;}
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;} ::-webkit-scrollbar{display:none;} button{cursor:pointer;border:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;} input,select{outline:none;font-size:16px!important;}
         .sans{font-family:'DM Sans',sans-serif;} .serif{font-family:'Cormorant Garamond',serif;}
         @keyframes fadeUp  {from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
         @keyframes scaleIn {from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
@@ -164,13 +164,14 @@ export default function MemberApp(){
         .fu{animation:fadeUp .45s ease both}
         .si{animation:scaleIn .35s cubic-bezier(.34,1.56,.64,1) both}
         .card-shine{position:absolute;top:0;left:-80%;width:55%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.1),transparent);transform:skewX(-15deg);animation:cardShine 3.5s ease infinite;pointer-events:none;}
-        .mem-reward{transition:all .2s;} .mem-reward:hover{transform:translateY(-3px);}
-        .tab-btn{transition:all .2s;}
+        .mem-reward{transition:all .2s;}
+        .tab-btn{transition:all .2s;min-height:44px;min-width:44px;}
+        input[type="password"]{font-size:16px!important;}
       `}</style>
 
       <div style={{width:"100%",maxWidth:430,minHeight:"100vh",background:"#f7f2eb",position:"relative",display:"flex",flexDirection:"column"}}>
         {/* NOTIFICATION */}
-        {notif&&<div className="sans" style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:notif.type==="success"?"#1a3a1a":"#3a1a1a",color:notif.type==="success"?"#86efac":"#fca5a5",padding:"12px 22px",borderRadius:99,fontSize:13,fontWeight:500,zIndex:9999,animation:"notifIn .4s cubic-bezier(.34,1.56,.64,1)",whiteSpace:"nowrap",boxShadow:"0 8px 32px #00000033"}}>{notif.msg}</div>}
+        {notif&&<div className="sans" style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:notif.type==="success"?"#1a3a1a":"#3a1a1a",color:notif.type==="success"?"#86efac":"#fca5a5",padding:"12px 20px",borderRadius:99,fontSize:13,fontWeight:500,zIndex:9999,animation:"notifIn .4s cubic-bezier(.34,1.56,.64,1)",whiteSpace:"nowrap",boxShadow:"0 8px 32px #00000033",maxWidth:"calc(100vw - 32px)",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis"}}>{notif.msg}</div>}
 
         {screen==="login"
           ? <LoginScreen members={members} tiers={tiers} onLogin={id=>{setMemberId(id);setScreen("portal");}}/>
@@ -257,7 +258,7 @@ function LoginScreen({members,tiers,onLogin}){
               <input key={i} ref={pinRefs[i]} type="password" inputMode="numeric" maxLength={1} value={pin[i]||""}
                 onKeyDown={e=>handlePinKey(i,e)}
                 onChange={()=>{}}
-                style={{width:52,height:60,textAlign:"center",fontSize:24,fontWeight:700,background:"#0d0a06",border:`2px solid ${pin[i]?"#f5c842":"#3a2a12"}`,borderRadius:12,color:"#f7f2eb",fontFamily:"'DM Sans',sans-serif",outline:"none"}}/>
+                style={{width:"18vw",maxWidth:64,height:"18vw",maxHeight:64,minWidth:48,minHeight:56,textAlign:"center",fontSize:24,fontWeight:700,background:"#0d0a06",border:`2px solid ${pin[i]?"#f5c842":"#3a2a12"}`,borderRadius:12,color:"#f7f2eb",fontFamily:"'DM Sans',sans-serif",outline:"none"}}/>
             ))}
           </div>
           {err&&<div style={{color:"#f87171",fontSize:12,marginBottom:16,textAlign:"center",fontFamily:"'DM Sans',sans-serif"}}>{err}</div>}
@@ -291,7 +292,8 @@ function LoginScreen({members,tiers,onLogin}){
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#6a5a3a",marginBottom:24}}>Enter your mobile number to access your account</div>
         <label style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#8a6a3a",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,display:"block"}}>Mobile Number</label>
         <input value={phone} onChange={e=>{setPhone(fmtPhone(e.target.value));setErr("");}} onKeyDown={e=>e.key==="Enter"&&submitPhone()} placeholder="012-3456-789"
-          style={{width:"100%",background:"#0d0a06",border:"1px solid #3a2a12",borderRadius:12,color:"#f7f2eb",padding:"14px 16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",transition:"border-color .2s",marginBottom:8}}/>
+          inputMode="tel" autoComplete="tel"
+          style={{width:"100%",background:"#0d0a06",border:"1px solid #3a2a12",borderRadius:12,color:"#f7f2eb",padding:"16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",transition:"border-color .2s",marginBottom:8}}/>
         {err&&<div style={{color:"#f87171",fontSize:12,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>{err}</div>}
 
         <button onClick={submitPhone} style={{width:"100%",padding:"16px",background:"linear-gradient(135deg,#f5c842,#f59e0b)",borderRadius:14,fontSize:15,fontWeight:700,color:"#1a1208",fontFamily:"'DM Sans',sans-serif",letterSpacing:.3,boxShadow:"0 4px 20px #f5c84244",border:"none",transition:"all .2s"}}>
@@ -327,15 +329,15 @@ function Portal({member,members,tiers,refLevels,setMembers,showNotif,syncing,las
   useEffect(()=>{if(syncRef.current!==member.points){showNotif("✦ Your points were updated by admin");syncRef.current=member.points;}});
 
   return(
-    <div style={{flex:1,overflowY:"auto",paddingBottom:90,position:"relative"}}>
+    <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(90px + env(safe-area-inset-bottom))",position:"relative"}}>
       {/* SYNC INDICATOR */}
-      <div style={{position:"fixed",top:12,right:12,display:"flex",alignItems:"center",gap:6,background:"rgba(247,242,235,.92)",backdropFilter:"blur(8px)",borderRadius:99,padding:"5px 12px",border:"1px solid #e0d4c0",zIndex:200}}>
+      <div style={{position:"fixed",top:"max(12px, env(safe-area-inset-top))",right:12,display:"flex",alignItems:"center",gap:5,background:"rgba(247,242,235,.95)",backdropFilter:"blur(8px)",borderRadius:99,padding:"5px 10px",border:"1px solid #e0d4c0",zIndex:200,boxShadow:"0 2px 8px #00000015"}}>
         <div style={{width:7,height:7,borderRadius:"50%",background:syncing?"#f59e0b":"#4ade80",boxShadow:`0 0 5px ${syncing?"#f59e0b":"#4ade80"}`,animation:syncing?"pulse .8s infinite":"none"}}/>
         <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#9a8a7a",fontWeight:600}}>{syncing?"Syncing":"Real-time"}</span>
       </div>
 
       {/* LOGOUT */}
-      <button onClick={onLogout} style={{position:"fixed",top:12,left:12,background:"rgba(247,242,235,.9)",backdropFilter:"blur(8px)",border:"1px solid #e8ddd0",borderRadius:99,padding:"6px 14px",fontSize:11,fontWeight:600,color:"#9a8a7a",fontFamily:"'DM Sans',sans-serif",zIndex:200}}>← Logout</button>
+      <button onClick={onLogout} style={{position:"fixed",top:"max(12px, env(safe-area-inset-top))",left:12,background:"rgba(247,242,235,.9)",backdropFilter:"blur(8px)",border:"1px solid #e8ddd0",borderRadius:99,padding:"8px 14px",fontSize:11,fontWeight:600,color:"#9a8a7a",fontFamily:"'DM Sans',sans-serif",zIndex:200,minHeight:36}}>← Logout</button>
 
       {tab==="home"     && <HomeTab     member={member} tier={tier} nextTier={nextTier}/>}
       {tab==="rewards"  && <RewardsTab  member={member} tier={tier} redeemed={redeemed} redeeming={redeeming} setRedeeming={setRedeeming} onRedeem={handleRedeem}/>}
@@ -344,7 +346,7 @@ function Portal({member,members,tiers,refLevels,setMembers,showNotif,syncing,las
       {tab==="profile"  && <ProfileTab  member={member} tier={tier} nextTier={nextTier} tiers={tiers} members={members} refLevels={refLevels} downline={downline} setMembers={setMembers} onLogout={onLogout}/>}
 
       {/* BOTTOM NAV */}
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(247,242,235,.96)",backdropFilter:"blur(20px)",borderTop:"1px solid #e8ddd0",padding:"10px 0 20px",display:"flex",justifyContent:"space-around",zIndex:100}}>
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"rgba(247,242,235,.96)",backdropFilter:"blur(20px)",borderTop:"1px solid #e8ddd0",paddingTop:10,paddingBottom:"max(20px, env(safe-area-inset-bottom))",display:"flex",justifyContent:"space-around",zIndex:100}}>
         {[{id:"home",icon:"⌂",label:"Home"},{id:"rewards",icon:"✦",label:"Rewards"},{id:"referral",icon:"◈",label:"Refer"},{id:"history",icon:"◷",label:"History"},{id:"profile",icon:"◉",label:"Profile"}].map(n=>(
           <button key={n.id} className="tab-btn" onClick={()=>setTab(n.id)} style={{background:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"4px 12px"}}>
             <span style={{fontSize:20,color:tab===n.id?tier.color:"#b8aa9a",transition:"color .2s",lineHeight:1.1}}>{n.icon}</span>
@@ -383,7 +385,7 @@ function HomeTab({member,tier,nextTier}){
   const cnt=useCountUp(member.points);
   const progress=nextTier?((member.points-tier.minPoints)/(nextTier.minPoints-tier.minPoints))*100:100;
   return <div>
-    <div style={{padding:"60px 24px 0",background:"linear-gradient(160deg,#1a1208 0%,#2a1f0e 60%,#1a1208 100%)",position:"relative",overflow:"hidden",paddingBottom:110}}>
+    <div style={{padding:"max(60px, calc(44px + env(safe-area-inset-top))) 20px 0",background:"linear-gradient(160deg,#1a1208 0%,#2a1f0e 60%,#1a1208 100%)",position:"relative",overflow:"hidden",paddingBottom:110}}>
       <div style={{position:"absolute",top:-60,right:-60,width:200,height:200,borderRadius:"50%",background:`${tier.color}11`,border:`1px solid ${tier.color}22`}}/>
       <div style={{position:"absolute",bottom:40,left:-40,width:160,height:160,borderRadius:"50%",background:"#f5c84208"}}/>
       <div style={{position:"relative",zIndex:1}}>
@@ -393,7 +395,7 @@ function HomeTab({member,tier,nextTier}){
       </div>
     </div>
     {/* CARD */}
-    <div style={{margin:"-80px 20px 0",position:"relative",zIndex:10}}>
+    <div style={{margin:"-80px 16px 0",position:"relative",zIndex:10}}>
       <div className="si" style={{background:"linear-gradient(135deg,#1e1508 0%,#2d2010 40%,#1a1208 100%)",borderRadius:22,padding:"28px 26px",position:"relative",overflow:"hidden",border:`1px solid ${tier.color}44`,boxShadow:`0 20px 60px #00000055,inset 0 1px 0 ${tier.color}33`}}>
         <div className="card-shine"/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
@@ -440,7 +442,7 @@ function RewardsTab({member,tier,redeemed,redeeming,setRedeeming,onRedeem}){
   const cats=["All","Dining","Stay","Wellness","Travel"];
   const filtered=filter==="All"?REWARDS_CATALOG:REWARDS_CATALOG.filter(r=>r.category===filter);
   return <div>
-    <div style={{padding:"60px 24px 24px",background:"linear-gradient(160deg,#1a1208,#2a1f0e)"}}>
+    <div style={{padding:"max(60px,calc(44px + env(safe-area-inset-top))) 20px 20px",background:"linear-gradient(160deg,#1a1208,#2a1f0e)"}}>
       <div className="sans fu" style={{fontSize:11,color:"#8a7a5a",letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Balance</div>
       <div className="serif fu" style={{fontSize:42,color:tier.color,fontWeight:700,animationDelay:".05s"}}>{member.points.toLocaleString()} <span style={{fontSize:18,color:"#6a5a3a"}}>pts</span></div>
     </div>
@@ -448,7 +450,7 @@ function RewardsTab({member,tier,redeemed,redeeming,setRedeeming,onRedeem}){
       {cats.map(c=><button key={c} onClick={()=>setFilter(c)} className="sans" style={{padding:"7px 16px",borderRadius:99,fontSize:12,fontWeight:600,border:"none",background:filter===c?tier.color:"#fff0e8",color:filter===c?"#1a1208":"#9a8a7a",whiteSpace:"nowrap",transition:"all .2s",flexShrink:0}}>{c}</button>)}
     </div>
     <div style={{padding:"16px 20px"}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:12}}>
         {filtered.map((r,i)=>{
           const can=member.points>=r.pts;const done=redeemed.includes(r.id);
           return <div key={r.id} className="mem-reward fu" onClick={()=>!done&&can&&setRedeeming(r)} style={{background:done?"#f0fdf4":"#fff8f0",border:`1px solid ${done?"#86efac":can?"#e8ddd0":"#ede8e0"}`,borderRadius:18,padding:"20px 16px",cursor:done||!can?"default":"pointer",opacity:!can&&!done?.6:1,position:"relative",overflow:"hidden",animationDelay:`${i*.06}s`}}>
@@ -475,14 +477,14 @@ function ReferralTab({member,members,refLevels,downline,copied,onCopy}){
       <div className="sans fu" style={{fontSize:11,color:"#4a8a5a",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Referral Network</div>
       <div className="serif fu" style={{fontSize:26,color:"#f0fdf4",fontWeight:600,animationDelay:".06s"}}>Earn together, grow together</div>
     </div>
-    <div style={{margin:"20px",background:"linear-gradient(135deg,#0d2a18,#163a24)",borderRadius:20,padding:"24px",border:"1px solid #1a4a28"}}>
+    <div style={{margin:"16px",background:"linear-gradient(135deg,#0d2a18,#163a24)",borderRadius:20,padding:"24px",border:"1px solid #1a4a28"}}>
       <div className="sans" style={{fontSize:10,color:"#4a8a5a",letterSpacing:2,textTransform:"uppercase",marginBottom:12}}>Your Referral Code</div>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div className="serif" style={{fontSize:26,color:"#86efac",fontWeight:700,letterSpacing:2,flex:1}}>{member.referralCode||"—"}</div>
         <button onClick={onCopy} className="sans" style={{background:copied?"#16a34a":"#1a4a28",color:copied?"#fff":"#86efac",border:"1px solid #1a6a38",borderRadius:10,padding:"9px 16px",fontSize:12,fontWeight:600,transition:"all .2s"}}>{copied?"✓ Copied":"Copy"}</button>
       </div>
     </div>
-    <div style={{margin:"0 20px 20px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+    <div style={{margin:"0 16px 20px",display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
       {[{val:downline.filter(d=>d.level===1).length,label:"Direct Refs",color:"#f59e0b"},{val:downline.length,label:"Network",color:"#10b981"},{val:totalEarned,label:"Pts Earned",color:"#6366f1"}].map(s=>(
         <div key={s.label} style={{background:"#fff8f0",borderRadius:14,padding:"16px 12px",textAlign:"center",border:"1px solid #e8ddd0"}}>
           <div className="serif" style={{fontSize:22,color:s.color,fontWeight:700}}>{s.val}</div>
@@ -507,7 +509,7 @@ function ReferralTab({member,members,refLevels,downline,copied,onCopy}){
         </div>
       ))}
     </div>
-    {downline.length>0&&<div style={{margin:"0 20px 24px"}}>
+    {downline.length>0&&<div style={{margin:"0 16px 24px"}}>
       <div className="serif" style={{fontSize:20,color:"#2a1a0a",marginBottom:14}}>My Network</div>
       {downline.map((d,i)=>{const dm=members.find(m=>m.id===d.id);const rl=refLevels.find(r=>r.level===d.level);if(!dm||!rl)return null;
         return <div key={d.id} className="fu" style={{display:"flex",alignItems:"center",gap:14,background:"#fff8f0",borderRadius:14,padding:"14px 16px",marginBottom:10,border:"1px solid #e8ddd0",animationDelay:`${i*.07}s`}}>
@@ -532,7 +534,7 @@ function HistoryTab({member,tier}){
   const earned =member.transactions.filter(t=>t.pts>0).reduce((s,t)=>s+t.pts,0);
   const spent  =member.transactions.filter(t=>t.pts<0).reduce((s,t)=>s+Math.abs(t.pts),0);
   return <div>
-    <div style={{padding:"60px 24px 24px",background:"linear-gradient(160deg,#1a1208,#2a1f0e)"}}>
+    <div style={{padding:"max(60px,calc(44px + env(safe-area-inset-top))) 20px 20px",background:"linear-gradient(160deg,#1a1208,#2a1f0e)"}}>
       <div className="sans fu" style={{fontSize:11,color:"#8a7a5a",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Points History</div>
       <div style={{display:"flex",gap:24}}>
         <div className="fu" style={{animationDelay:".05s"}}><div className="sans" style={{fontSize:10,color:"#4a6a4a",letterSpacing:1}}>EARNED</div><div className="serif" style={{fontSize:28,color:"#4ade80",fontWeight:700}}>+{earned.toLocaleString()}</div></div>
@@ -588,7 +590,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
       <div className="sans" style={{fontSize:12,color:"#6a5a3a",marginTop:6}}>{member.phone}</div>
     </div>
 
-    <div style={{margin:"20px",background:"#fff8f0",borderRadius:20,padding:"22px",border:"1px solid #e8ddd0"}}>
+    <div style={{margin:"16px",background:"#fff8f0",borderRadius:16,padding:"22px",border:"1px solid #e8ddd0"}}>
       <div className="serif" style={{fontSize:18,color:"#2a1a0a",marginBottom:16}}>Tier Journey</div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         {tiers.map(t=>{const achieved=member.points>=t.minPoints;return(
@@ -604,7 +606,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
       </div><PBar value={member.points-tier.minPoints} max={nextTier.minPoints-tier.minPoints} color={tier.color} h={8}/></>}
     </div>
 
-    <div style={{margin:"0 20px 16px"}}>
+    <div style={{margin:"0 16px 16px"}}>
       <div className="serif" style={{fontSize:20,color:"#2a1a0a",marginBottom:14}}>Membership Details</div>
       {[
         {label:"Member ID",val:member.id},{label:"Total Points",val:`${member.points.toLocaleString()} pts`},
@@ -620,7 +622,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
     </div>
 
     {/* CHANGE PIN */}
-    <div style={{margin:"0 20px 16px",background:"#fff8f0",borderRadius:20,border:"1px solid #e8ddd0",overflow:"hidden"}}>
+    <div style={{margin:"0 16px 16px",background:"#fff8f0",borderRadius:20,border:"1px solid #e8ddd0",overflow:"hidden"}}>
       <button onClick={()=>{setShowPin(s=>!s);setPinErr("");setPinOk("");setPinForm({current:"",next:"",confirm:""}); }} 
         style={{width:"100%",padding:"18px 22px",background:"none",border:"none",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -643,7 +645,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
             <input type="password" inputMode="numeric" maxLength={4} placeholder={placeholder} value={pinForm[key]}
               onChange={e=>{ setPinForm(f=>({...f,[key]:e.target.value.replace(/\D/g,"").slice(0,4)})); setPinErr(""); setPinOk(""); }}
               onKeyDown={e=>e.key==="Enter"&&changePin()}
-              style={{width:"100%",background:"#f7f0e8",border:"1px solid #e0d4c0",borderRadius:10,color:"#2a1a0a",padding:"12px 14px",fontSize:18,fontFamily:"'DM Sans',sans-serif",letterSpacing:6,outline:"none"}}/>
+              style={{width:"100%",background:"#f7f0e8",border:"1px solid #e0d4c0",borderRadius:10,color:"#2a1a0a",padding:"14px",fontSize:16,fontFamily:"'DM Sans',sans-serif",letterSpacing:4,outline:"none"}}/>
           </div>
         ))}
         {pinErr&&<div className="sans" style={{color:"#dc2626",fontSize:12,marginTop:10,background:"#fff0f0",borderRadius:8,padding:"8px 12px",border:"1px solid #fca5a5"}}>{pinErr}</div>}
