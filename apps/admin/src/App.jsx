@@ -1034,7 +1034,7 @@ function WhatsAppBlast({ctx}){
               placeholder={"Hi {name}! Wishing you a wonderful birthday this {birthday}! Enjoy {points} pts."}
               style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
                 color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-                resize:"vertical",outline:"none",lineHeight:1.7,marginTop:4}}/>
+                resize:"vertical",outline:"none",lineHeight:1.7,marginTop:4}}></textarea>
             <div style={{marginTop:6,fontSize:11,color:"#2a3a55"}}>
               Placeholders: <span style={{color:"#445577"}}>{"{name}"}</span> · <span style={{color:"#445577"}}>{"{fullname}"}</span> · <span style={{color:"#445577"}}>{"{points}"}</span> · <span style={{color:"#445577"}}>{"{tier}"}</span> · <span style={{color:"#445577"}}>{"{multiplier}"}</span> · <span style={{color:"#f59e0b"}}>{"{birthday}"}</span> (birth month)
             </div>
@@ -1102,7 +1102,7 @@ function WhatsAppBlast({ctx}){
                   placeholder={"Hi {name}! Use {points}, {tier}, {birthday} as placeholders."}
                   style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
                     color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-                    resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}/>
+                    resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}></textarea>
               :<div style={{background:"#0a0f1a",borderRadius:10,padding:"14px",border:"1px solid #1e2535",
                   fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap",marginTop:4,minHeight:100}}>
                 {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"1990-03-15"},msgText)}
@@ -1409,7 +1409,7 @@ function WhatsAppBlast({ctx}){
               placeholder={"Hi {name}! Your balance is {points} pts ({tier} tier, {multiplier}x multiplier)."}
               style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
                 color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-                resize:"vertical",outline:"none",lineHeight:1.7,marginTop:4}}/>
+                resize:"vertical",outline:"none",lineHeight:1.7,marginTop:4}}></textarea>
             <div style={{marginTop:6,fontSize:11,color:"#2a3a55"}}>
               Placeholders: <span style={{color:"#445577"}}>{"{name}"}</span> · <span style={{color:"#445577"}}>{"{points}"}</span> · <span style={{color:"#445577"}}>{"{tier}"}</span> · <span style={{color:"#445577"}}>{"{multiplier}"}</span>
             </div>
@@ -1489,7 +1489,7 @@ function WhatsAppBlast({ctx}){
                   placeholder={"Hi {name}! Use {points}, {tier}, {multiplier} as placeholders."}
                   style={{width:"100%",minHeight:160,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
                     color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-                    resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}/>
+                    resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}></textarea>
               :<div style={{background:"#0a0f1a",borderRadius:10,padding:"14px",border:"1px solid #1e2535",
                   fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap",marginTop:4,minHeight:120}}>
                 {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:""},msgText)}
@@ -1707,7 +1707,7 @@ function WhatsAppBlast({ctx}){
             {templateId==="custom"
               ? <textarea value={customText} onChange={e=>setCustomText(e.target.value)}
                   placeholder={"Hi {name}! Use {points}, {tier}, {multiplier} as placeholders."}
-                  style={{width:"100%",minHeight:160,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}/>
+                  style={{width:"100%",minHeight:160,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}></textarea>
               : <div style={{background:"#0a0f1a",borderRadius:10,padding:"14px",border:"1px solid #1e2535",fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap",marginTop:4,minHeight:120}}>
                   {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",referralCode:""},msgText)}
                 </div>
