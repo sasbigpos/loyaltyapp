@@ -191,44 +191,29 @@ function LoginScreen({members,tiers,onLogin}){
   const [pin,setPin]=useState("");
   const [found,setFound]=useState(null);
   const [err,setErr]=useState("");
-  const pinRefs=[useRef(),useRef(),useRef(),useRef()];
+  const pinInputRef=useRef();
 
   const submitPhone=()=>{
     const raw=phone.replace(/\D/g,"");
     const m=members.find(m=>m.phone.replace(/\D/g,"")===raw);
     if(!m){setErr("No member found with this number.");return;}
     setFound(m);setPin("");setErr("");setStep("pin");
-    setTimeout(()=>pinRefs[0].current?.focus(),100);
+    setTimeout(()=>pinInputRef.current?.focus(),150);
   };
 
-  const submitPin=(fullPin)=>{
-    const p=fullPin||pin;
+  const submitPin=(val)=>{
+    const p=val||pin;
     const memberPin=found.pin||"0000";
     if(p===memberPin){onLogin(found.id);}
     else{setErr("Incorrect PIN. Please try again.");setPin("");}
   };
 
-  const handlePinKey=(i,e)=>{
-    if(e.key==="Backspace"){
-      if(pin[i]){const a=pin.split("");a[i]="";setPin(a.join(""));}
-      else if(i>0){pinRefs[i-1].current?.focus();}
-      return;
-    }
-    if(!/^\d$/.test(e.key))return;
-    const a=(pin+"    ").slice(0,4).split("");
-    a[i]=e.key;
-    const next=a.join("").replace(/ /g,"");
-    setPin(next);setErr("");
-    if(i<3)pinRefs[i+1].current?.focus();
-    if(next.length===4)setTimeout(()=>submitPin(next),80);
+  const handlePinChange=(e)=>{
+    const val=e.target.value.replace(/\D/g,"").slice(0,4);
+    setPin(val);
+    setErr("");
+    if(val.length===4) setTimeout(()=>submitPin(val),80);
   };
-
-  const BG=(
-    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",background:"linear-gradient(170deg,#1a1208 0%,#0d0a06 50%,#1a1208 100%)",position:"relative",overflow:"hidden"}}>
-      <div style={{position:"absolute",top:"-15%",right:"-20%",width:300,height:300,borderRadius:"50%",background:"radial-gradient(ellipse,#f5c84214,transparent 70%)"}}/>
-      <div style={{position:"absolute",bottom:"-15%",left:"-20%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(ellipse,#cd7f3210,transparent 70%)"}}/>
-    </div>
-  );
 
   const Logo=(
     <div className="fu" style={{textAlign:"center",marginBottom:40}}>
@@ -252,20 +237,52 @@ function LoginScreen({members,tiers,onLogin}){
               <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"#6a5a3a"}}>{found.phone}</div>
             </div>
           </div>
-          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#8a6a3a",marginBottom:24,textAlign:"center"}}>Enter your 4-digit PIN</div>
-          <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:err?12:24}}>
+          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#8a6a3a",marginBottom:20,textAlign:"center"}}>Enter your 4-digit PIN</div>
+
+          {/* PIN display dots — visual only, actual input is hidden below */}
+          <div style={{display:"flex",justifyContent:"center",gap:14,marginBottom:20}}
+               onClick={()=>pinInputRef.current?.focus()}>
             {[0,1,2,3].map(i=>(
-              <input key={i} ref={pinRefs[i]} type="password" inputMode="numeric" maxLength={1} value={pin[i]||""}
-                onKeyDown={e=>handlePinKey(i,e)}
-                onChange={()=>{}}
-                style={{width:"18vw",maxWidth:64,height:"18vw",maxHeight:64,minWidth:48,minHeight:56,textAlign:"center",fontSize:24,fontWeight:700,background:"#0d0a06",border:`2px solid ${pin[i]?"#f5c842":"#3a2a12"}`,borderRadius:12,color:"#f7f2eb",fontFamily:"'DM Sans',sans-serif",outline:"none"}}/>
+              <div key={i} style={{
+                width:56,height:64,borderRadius:14,
+                background: pin[i] ? "#1a1208" : "#0d0a06",
+                border:`2px solid ${pin[i]?"#f5c842":err?"#5a1a1a":"#3a2a12"}`,
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:28,color:"#f5c842",fontWeight:700,
+                transition:"border-color .15s",
+                cursor:"text"
+              }}>
+                {pin[i] ? "●" : ""}
+              </div>
             ))}
           </div>
-          {err&&<div style={{color:"#f87171",fontSize:12,marginBottom:16,textAlign:"center",fontFamily:"'DM Sans',sans-serif"}}>{err}</div>}
-          <button onClick={()=>submitPin()} style={{width:"100%",padding:"16px",background:"linear-gradient(135deg,#f5c842,#f59e0b)",borderRadius:14,fontSize:15,fontWeight:700,color:"#1a1208",fontFamily:"'DM Sans',sans-serif",letterSpacing:.3,boxShadow:"0 4px 20px #f5c84244",border:"none",marginBottom:12}}>
+
+          {/* Single hidden input — captures all keyboard input including mobile */}
+          <input
+            ref={pinInputRef}
+            type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="one-time-code"
+            maxLength={4}
+            value={pin}
+            onChange={handlePinChange}
+            onKeyDown={e=>e.key==="Enter"&&submitPin()}
+            style={{
+              position:"absolute",opacity:0,width:1,height:1,
+              top:0,left:0,pointerEvents:"none"
+            }}
+          />
+
+          {err&&<div style={{color:"#f87171",fontSize:13,marginBottom:16,textAlign:"center",fontFamily:"'DM Sans',sans-serif",background:"#2a0d0d",borderRadius:8,padding:"8px 14px"}}>{err}</div>}
+
+          <button onClick={()=>submitPin()} style={{width:"100%",padding:"17px",background:"linear-gradient(135deg,#f5c842,#f59e0b)",borderRadius:14,fontSize:15,fontWeight:700,color:"#1a1208",fontFamily:"'DM Sans',sans-serif",letterSpacing:.3,boxShadow:"0 4px 20px #f5c84244",border:"none",marginBottom:12}}>
             Verify PIN →
           </button>
-          <button onClick={()=>{setStep("phone");setPin("");setErr("");}} style={{width:"100%",padding:"10px",background:"transparent",border:"1px solid #3a2a12",borderRadius:10,fontSize:13,color:"#6a5a3a",fontFamily:"'DM Sans',sans-serif",cursor:"pointer"}}>
+          <button onClick={()=>pinInputRef.current?.focus()} style={{width:"100%",padding:"14px",background:"#1a1208",border:"1px solid #3a2a12",borderRadius:12,fontSize:13,color:"#8a6a3a",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>
+            Tap to open keyboard
+          </button>
+          <button onClick={()=>{setStep("phone");setPin("");setErr("");}} style={{width:"100%",padding:"10px",background:"transparent",border:"1px solid #2a1a08",borderRadius:10,fontSize:13,color:"#4a3a1a",fontFamily:"'DM Sans',sans-serif"}}>
             ← Use different number
           </button>
           <div style={{marginTop:14,fontSize:11,color:"#3a2a12",textAlign:"center",fontFamily:"'DM Sans',sans-serif"}}>Default PIN: <span style={{color:"#f5c842",fontWeight:600}}>1234</span> · Set by admin on enrollment</div>
@@ -636,16 +653,23 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
       </button>
       {showPin&&<div style={{padding:"0 22px 22px",borderTop:"1px solid #e8ddd0"}}>
         {[
-          {key:"current",label:"Current PIN",placeholder:"Enter current PIN"},
-          {key:"next",   label:"New PIN",    placeholder:"4-digit PIN"},
-          {key:"confirm",label:"Confirm PIN",placeholder:"Repeat new PIN"},
+          {key:"current",label:"Current PIN",placeholder:"••••"},
+          {key:"next",   label:"New PIN",    placeholder:"••••"},
+          {key:"confirm",label:"Confirm PIN",placeholder:"••••"},
         ].map(({key,label,placeholder})=>(
           <div key={key} style={{marginTop:14}}>
             <label className="sans" style={{fontSize:11,fontWeight:600,color:"#9a8a7a",letterSpacing:.8,textTransform:"uppercase",display:"block",marginBottom:6}}>{label}</label>
-            <input type="password" inputMode="numeric" maxLength={4} placeholder={placeholder} value={pinForm[key]}
+            <input
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              maxLength={4}
+              placeholder={placeholder}
+              value={pinForm[key]}
               onChange={e=>{ setPinForm(f=>({...f,[key]:e.target.value.replace(/\D/g,"").slice(0,4)})); setPinErr(""); setPinOk(""); }}
               onKeyDown={e=>e.key==="Enter"&&changePin()}
-              style={{width:"100%",background:"#f7f0e8",border:"1px solid #e0d4c0",borderRadius:10,color:"#2a1a0a",padding:"14px",fontSize:16,fontFamily:"'DM Sans',sans-serif",letterSpacing:4,outline:"none"}}/>
+              style={{width:"100%",background:"#f7f0e8",border:"1px solid #e0d4c0",borderRadius:10,color:"#2a1a0a",padding:"16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",letterSpacing:8,outline:"none",-webkit-text-security:"disc"}}/>
           </div>
         ))}
         {pinErr&&<div className="sans" style={{color:"#dc2626",fontSize:12,marginTop:10,background:"#fff0f0",borderRadius:8,padding:"8px 12px",border:"1px solid #fca5a5"}}>{pinErr}</div>}
