@@ -840,10 +840,11 @@ function Config({ctx}){
 
 // ─── WHATSAPP BLAST ───────────────────────────────────────────────────────────
 const DEFAULT_WA_TEMPLATES = [
-  { id:"promo",   label:"Promotion",       icon:"🎉", text:"Hi {name}! 🎉 We have an exclusive promotion just for you. Visit us today and enjoy special rewards on your next purchase. Your current balance is {points} pts ({tier} tier). Don't miss out!\n\n— LOYALCORE Team" },
-  { id:"points",  label:"Points Update",   icon:"✦",  text:"Hi {name}! Your LOYALCORE points balance has been updated.\n\n✦ Current Balance: {points} pts\n✦ Tier: {tier}\n✦ Multiplier: {multiplier}x\n\nKeep earning and unlock more rewards!\n\n— LOYALCORE Team" },
-  { id:"redeem",  label:"Redeem Reminder", icon:"🎁", text:"Hi {name}! 🎁 Reminder: You have {points} pts ready to redeem on exciting rewards. Log in to your LOYALCORE portal to see what's available for you.\n\n— LOYALCORE Team" },
-  { id:"tier",    label:"Tier Achievement", icon:"🏆", text:"Hi {name}! Congratulations! 🏆 You've reached {tier} tier status with {points} pts. Enjoy your {multiplier}x points multiplier on every purchase going forward!\n\n— LOYALCORE Team" },
+  { id:"promo",    label:"Promotion",       icon:"🎉", text:"Hi {name}! 🎉 We have an exclusive promotion just for you. Visit us today and enjoy special rewards on your next purchase. Your current balance is {points} pts ({tier} tier). Don't miss out!\n\n— LOYALCORE Team" },
+  { id:"birthday", label:"Birthday Wish",   icon:"🎂", text:"Hi {name}! 🎂 Wishing you a wonderful birthday this {birthday}!\n\nAs a valued {tier} member, we have a special birthday treat waiting for you. Visit us this month to claim your birthday reward!\n\n🎁 Your current balance: {points} pts\n⭐ Tier: {tier} ({multiplier}x multiplier)\n\nHappy Birthday! 🥳\n\n— LOYALCORE Team" },
+  { id:"points",   label:"Points Update",   icon:"✦",  text:"Hi {name}! Your LOYALCORE points balance has been updated.\n\n✦ Current Balance: {points} pts\n✦ Tier: {tier}\n✦ Multiplier: {multiplier}x\n\nKeep earning and unlock more rewards!\n\n— LOYALCORE Team" },
+  { id:"redeem",   label:"Redeem Reminder", icon:"🎁", text:"Hi {name}! 🎁 Reminder: You have {points} pts ready to redeem on exciting rewards. Log in to your LOYALCORE portal to see what's available for you.\n\n— LOYALCORE Team" },
+  { id:"tier",     label:"Tier Achievement", icon:"🏆", text:"Hi {name}! Congratulations! 🏆 You've reached {tier} tier status with {points} pts. Enjoy your {multiplier}x points multiplier on every purchase going forward!\n\n— LOYALCORE Team" },
 ];
 
 function WhatsAppBlast({ctx}){
