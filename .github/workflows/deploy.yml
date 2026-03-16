@@ -24,10 +24,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: apps/admin/package-lock.json
+          cache-dependency-path: apps/admin/package.json
       - name: Install
         working-directory: apps/admin
-        run: npm ci
+        run: npm install
       - name: Build
         working-directory: apps/admin
         env:
@@ -53,10 +53,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: apps/member/package-lock.json
+          cache-dependency-path: apps/member/package.json
       - name: Install
         working-directory: apps/member
-        run: npm ci
+        run: npm install
       - name: Build
         working-directory: apps/member
         env:
