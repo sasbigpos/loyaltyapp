@@ -265,7 +265,7 @@ export default function AdminApp() {
           </div>
           <div style={{fontSize:9,color:"#2a3a4a",letterSpacing:2,textTransform:"uppercase"}}>Admin Portal</div>
         </div>
-        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"deduct",icon:"◇",label:"Deduct Points"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
+        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"deduct",icon:"◇",label:"Deduct Points"},{id:"whatsapp",icon:"💬",label:"WhatsApp Blast"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
           <div key={n.id} className={`nav${view===n.id?" on":""}`} onClick={()=>{setView(n.id);setSelId(null);}}>
             <span style={{fontSize:16}}>{n.icon}</span>{n.label}
           </div>
@@ -288,6 +288,7 @@ export default function AdminApp() {
         {view==="enroll"    && <Enroll    ctx={ctx} onDone={()=>setView("members")}/>}
         {view==="points"    && <AwardPts  ctx={ctx}/>}
         {view==="config"    && <Config    ctx={ctx}/>}
+        {view==="whatsapp"  && <WhatsAppBlast ctx={ctx}/>}
         {view==="deduct"    && <DeductPts  ctx={ctx}/>}
         {view==="profile"   && selId && <Profile ctx={ctx} memberId={selId} onBack={()=>setView("members")}/>}
       </div>
@@ -805,4 +806,232 @@ function Config({ctx}){
       <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px",opacity:pwSaving?0.6:1}} disabled={pwSaving}>{pwSaving?"Saving…":"🔑 Change Password"}</button>
     </div>}
   </div>;
+}
+
+// ─── WHATSAPP BLAST ───────────────────────────────────────────────────────────
+const WA_TEMPLATES = [
+  { id:"promo",   label:"Promotion",      icon:"🎉", text:"Hi {name}! 🎉 We have an exclusive promotion just for you. Visit us today and enjoy special rewards on your next purchase. Your current balance is {points} pts ({tier} tier). Don't miss out!\n\n— LOYALCORE Team" },
+  { id:"points",  label:"Points Update",  icon:"✦",  text:"Hi {name}! Your LOYALCORE points balance has been updated.\n\n✦ Current Balance: {points} pts\n✦ Tier: {tier}\n✦ Multiplier: {multiplier}x\n\nKeep earning and unlock more rewards!\n\n— LOYALCORE Team" },
+  { id:"redeem",  label:"Redeem Reminder",icon:"🎁", text:"Hi {name}! 🎁 Reminder: You have {points} pts ready to redeem on exciting rewards. Log in to your LOYALCORE portal to see what's available for you.\n\n— LOYALCORE Team" },
+  { id:"tier",    label:"Tier Achievement",icon:"🏆", text:"Hi {name}! Congratulations! 🏆 You've reached {tier} tier status with {points} pts. Enjoy your {multiplier}x points multiplier on every purchase going forward!\n\n— LOYALCORE Team" },
+  { id:"custom",  label:"Custom Message",  icon:"✏️", text:"" },
+];
+
+function WhatsAppBlast({ctx}){
+  const {members,tiers}=ctx;
+  const [step,setStep]=useState("compose"); // compose | preview | sending
+  const [templateId,setTemplateId]=useState("promo");
+  const [customText,setCustomText]=useState("");
+  const [recipients,setRecipients]=useState("all"); // all | tier | select
+  const [selTier,setSelTier]=useState("");
+  const [selIds,setSelIds]=useState([]);
+  const [sentIdx,setSentIdx]=useState(-1);
+  const [sendLog,setSendLog]=useState([]);
+
+  const template=WA_TEMPLATES.find(t=>t.id===templateId);
+
+  const getRecipients=()=>{
+    if(recipients==="all") return members;
+    if(recipients==="tier") return members.filter(m=>getTier(m.points,tiers).id===selTier);
+    return members.filter(m=>selIds.includes(m.id));
+  };
+
+  const buildMsg=(member,rawText)=>{
+    const tier=getTier(member.points,tiers);
+    return (rawText||"")
+      .replace(/{name}/g,   member.name.split(" ")[0])
+      .replace(/{points}/g, member.points.toLocaleString())
+      .replace(/{tier}/g,   tier.name)
+      .replace(/{multiplier}/g, tier.multiplier);
+  };
+
+  const waLink=(phone,msg)=>{
+    const num=phone.replace(/\D/g,"");
+    const intl=num.startsWith("0")?"60"+num.slice(1):num;
+    return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
+  };
+
+  const msgText=templateId==="custom"?customText:template?.text||"";
+  const list=getRecipients();
+
+  const sendAll=()=>{
+    setSentIdx(0);
+    setSendLog([]);
+    setStep("sending");
+  };
+
+  // Open each WhatsApp link one by one
+  useEffect(()=>{
+    if(step!=="sending"||sentIdx<0||sentIdx>=list.length) return;
+    const member=list[sentIdx];
+    const msg=buildMsg(member,msgText);
+    const link=waLink(member.phone,msg);
+    window.open(link,"_blank");
+    setSendLog(l=>[...l,{name:member.name,phone:member.phone,sent:true}]);
+    const timer=setTimeout(()=>{
+      if(sentIdx+1<list.length) setSentIdx(i=>i+1);
+      else setStep("done");
+    },1500);
+    return()=>clearTimeout(timer);
+  },[sentIdx,step]);
+
+  const reset=()=>{setSentIdx(-1);setSendLog([]);setStep("compose");};
+
+  const toggleId=(id)=>setSelIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+
+  if(step==="done") return(
+    <div className="fi" style={{maxWidth:560}}>
+      <div style={{marginBottom:28}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>WhatsApp Blast</h1>
+      </div>
+      <div className="card" style={{padding:"32px",textAlign:"center"}}>
+        <div style={{fontSize:56,marginBottom:16}}>✅</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#e8eaf0",marginBottom:8}}>Blast Complete</div>
+        <div style={{color:"#5566aa",fontSize:14,marginBottom:28}}>{sendLog.length} messages sent via WhatsApp</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:280,overflowY:"auto",marginBottom:24,textAlign:"left"}}>
+          {sendLog.map((l,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
+              <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{l.name}</span>
+              <span style={{color:"#4ade80",fontSize:12}}>✓ Sent · {l.phone}</span>
+            </div>
+          ))}
+        </div>
+        <button className="btn" onClick={reset}>Send Another Blast</button>
+      </div>
+    </div>
+  );
+
+  if(step==="sending") return(
+    <div className="fi" style={{maxWidth:560}}>
+      <div style={{marginBottom:28}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>WhatsApp Blast</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Opening WhatsApp for each recipient…</p>
+      </div>
+      <div className="card" style={{padding:"32px",textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:16,animation:"spin 1.5s linear infinite",display:"inline-block"}}>💬</div>
+        <div style={{color:"#e8eaf0",fontSize:16,fontWeight:600,marginBottom:4}}>Sending {sentIdx+1} of {list.length}</div>
+        <div style={{color:"#5566aa",fontSize:13,marginBottom:24}}>{list[sentIdx]?.name} · {list[sentIdx]?.phone}</div>
+        <div style={{background:"#0a0f1a",borderRadius:10,height:6,overflow:"hidden",marginBottom:24}}>
+          <div style={{height:"100%",background:"linear-gradient(90deg,#25d366,#128c7e)",borderRadius:10,width:`${((sentIdx+1)/list.length)*100}%`,transition:"width .4s ease"}}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto",textAlign:"left",marginBottom:16}}>
+          {sendLog.map((l,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:"#0d2a1a",borderRadius:8,border:"1px solid #1a4a2a"}}>
+              <span style={{color:"#ccd",fontSize:12}}>{l.name}</span>
+              <span style={{color:"#4ade80",fontSize:11}}>✓ Opened</span>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:"#2a3a4a"}}>WhatsApp opens automatically for each contact. Allow pop-ups if prompted.</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div className="fi" style={{maxWidth:640}}>
+      <div style={{marginBottom:28}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>WhatsApp Blast</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Send personalised promotional messages to members via WhatsApp</p>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+
+        {/* LEFT — Compose */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+          {/* Template picker */}
+          <div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">Message Template</label>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+              {WA_TEMPLATES.map(t=>(
+                <button key={t.id} onClick={()=>setTemplateId(t.id)}
+                  style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
+                    background:templateId===t.id?"#0d2a1a":"#0a0f1a",
+                    border:`1px solid ${templateId===t.id?"#1a5a2a":"#1e2535"}`,
+                    color:templateId===t.id?"#4ade80":"#6677aa",
+                    fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom text or preview */}
+          <div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">{templateId==="custom"?"Your Message":"Message Preview"}</label>
+            {templateId==="custom"
+              ? <textarea value={customText} onChange={e=>setCustomText(e.target.value)}
+                  placeholder={"Hi {name}! Use {points}, {tier}, {multiplier} as placeholders."}
+                  style={{width:"100%",minHeight:160,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}/>
+              : <div style={{background:"#0a0f1a",borderRadius:10,padding:"14px",border:"1px solid #1e2535",fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap",marginTop:4,minHeight:120}}>
+                  {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",referralCode:""},msgText)}
+                </div>
+            }
+            <div style={{marginTop:8,fontSize:11,color:"#2a3a55"}}>
+              Placeholders: <span style={{color:"#445566"}}>{"{name}"}</span> · <span style={{color:"#445566"}}>{"{points}"}</span> · <span style={{color:"#445566"}}>{"{tier}"}</span> · <span style={{color:"#445566"}}>{"{multiplier}"}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT — Recipients */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">Recipients</label>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+              {[{v:"all",l:`All Members (${members.length})`},{v:"tier",l:"By Tier"},{v:"select",l:"Select Individually"}].map(o=>(
+                <button key={o.v} onClick={()=>setRecipients(o.v)}
+                  style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
+                    background:recipients===o.v?"#0d1a2a":"#0a0f1a",
+                    border:`1px solid ${recipients===o.v?"#1a3050":"#1e2535"}`,
+                    color:recipients===o.v?"#60a5fa":"#6677aa",
+                    fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            {recipients==="tier"&&<div style={{marginTop:12}}>
+              <label className="lbl">Select Tier</label>
+              <select className="inp" value={selTier} onChange={e=>setSelTier(e.target.value)}>
+                <option value="">— Choose tier —</option>
+                {tiers.map(t=>{const cnt=members.filter(m=>getTier(m.points,tiers).id===t.id).length;return<option key={t.id} value={t.id}>{t.icon} {t.name} ({cnt})</option>;})}
+              </select>
+            </div>}
+            {recipients==="select"&&<div style={{marginTop:12,display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
+              {members.map(m=>{const t=getTier(m.points,tiers);return(
+                <label key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:selIds.includes(m.id)?"#0d1a2a":"#0a0f1a",borderRadius:10,border:`1px solid ${selIds.includes(m.id)?"#1a3050":"#1e2535"}`,cursor:"pointer",transition:"all .15s"}}>
+                  <input type="checkbox" checked={selIds.includes(m.id)} onChange={()=>toggleId(m.id)} style={{accentColor:"#f59e0b",width:16,height:16}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
+                    <div style={{fontSize:11,color:"#445566"}}>{m.phone}</div>
+                  </div>
+                  <span style={{fontSize:10,color:t.color,fontWeight:700,background:`${t.color}18`,padding:"2px 8px",borderRadius:99}}>{t.name}</span>
+                </label>
+              );})}
+            </div>}
+          </div>
+
+          {/* Summary + Send */}
+          <div className="card" style={{padding:"22px 24px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
+              <span style={{color:"#5566aa",fontSize:13}}>Recipients</span>
+              <span style={{color:"#f59e0b",fontWeight:700,fontSize:15}}>{list.length} members</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+              <span style={{color:"#5566aa",fontSize:13}}>Template</span>
+              <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{template?.icon} {template?.label}</span>
+            </div>
+            <div style={{background:"#0a1a0d",border:"1px solid #1a3a1a",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:12,color:"#4a7a4a",lineHeight:1.6}}>
+              📱 WhatsApp will open for each recipient with the message pre-filled. You confirm each send manually.
+            </div>
+            <button className="btn" onClick={sendAll}
+              disabled={list.length===0||!msgText.trim()}
+              style={{width:"100%",background:"linear-gradient(135deg,#25d366,#128c7e)",opacity:list.length===0||!msgText.trim()?0.4:1}}>
+              💬 Send to {list.length} Member{list.length!==1?"s":""}
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
 }
