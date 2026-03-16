@@ -22,13 +22,13 @@ const DEFAULT_REF = [
   { level:3, label:"3rd Level Override", overridePercent:2,  color:"#6366f1" },
 ];
 const SEED_MEMBERS = [
-  { id:"m001", name:"Aisha Rahman", phone:"012-3456-789", pin:"1234", points:3200, referredBy:null,   joinedAt:"2024-01-10", referralCode:"AISHA-2024",
+  { id:"m001", name:"Aisha Rahman", phone:"012-3456-789", pin:"1234", birthday:"1990-03-15", points:3200, referredBy:null,   joinedAt:"2024-01-10", referralCode:"AISHA-2024",
     transactions:[{id:"t1a",pts:500,icon:"🍽️",label:"Weekend Dining",date:"Mar 08",type:"earn"},{id:"t1b",pts:200,icon:"👥",label:"Referral Bonus",date:"Mar 05",type:"earn"},{id:"t1c",pts:-150,icon:"🎁",label:"Free Dessert",date:"Mar 01",type:"redeem"},{id:"t1d",pts:800,icon:"🎂",label:"Birthday Campaign",date:"Feb 22",type:"earn"},{id:"t1e",pts:1850,icon:"⭐",label:"Welcome Bonus",date:"Jan 10",type:"earn"}]},
-  { id:"m002", name:"Daniel Tan",   phone:"016-8877-001", pin:"1234", points:720,  referredBy:"m001", joinedAt:"2024-02-14", referralCode:"DTAN-5528",
+  { id:"m002", name:"Daniel Tan",   phone:"016-8877-001", pin:"1234", birthday:"1988-07-22", points:720,  referredBy:"m001", joinedAt:"2024-02-14", referralCode:"DTAN-5528",
     transactions:[{id:"t2a",pts:720,icon:"⭐",label:"Welcome + First Purchase",date:"Feb 14",type:"earn"}]},
-  { id:"m003", name:"Priya Nair",   phone:"011-2345-678", pin:"1234", points:1680, referredBy:"m001", joinedAt:"2024-03-01", referralCode:"PNAIR-889",
+  { id:"m003", name:"Priya Nair",   phone:"011-2345-678", pin:"1234", birthday:"1995-03-08", points:1680, referredBy:"m001", joinedAt:"2024-03-01", referralCode:"PNAIR-889",
     transactions:[{id:"t3a",pts:1680,icon:"⭐",label:"Welcome + Monthly Spend",date:"Mar 01",type:"earn"}]},
-  { id:"m004", name:"Kevin Lim",    phone:"017-5544-332", pin:"1234", points:210,  referredBy:"m002", joinedAt:"2024-04-05", referralCode:"KLIM-221",
+  { id:"m004", name:"Kevin Lim",    phone:"017-5544-332", pin:"1234", birthday:"1992-11-30", points:210,  referredBy:"m002", joinedAt:"2024-04-05", referralCode:"KLIM-221",
     transactions:[{id:"t4a",pts:210,icon:"⭐",label:"Welcome Bonus",date:"Apr 05",type:"earn"}]},
 ];
 
@@ -198,10 +198,10 @@ export default function AdminApp() {
     });
   };
 
-  const enrollMember = (name,phone,referredBy,pin="0000") => {
+  const enrollMember = (name,phone,referredBy,pin="0000",birthday="") => {
     const id=genId();
     const code=name.split(" ")[0].toUpperCase()+"-"+Math.floor(1000+Math.random()*9000);
-    const newM={id,name,phone,pin,points:100,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,
+    const newM={id,name,phone,pin,birthday,points:100,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,
       transactions:[{id:genId(),pts:100,icon:"⭐",label:"Welcome Bonus",date:today(),type:"earn"}]};
     setMembers(prev=>[...prev,newM]);
     return newM;
@@ -404,7 +404,7 @@ function Members({ctx,onSelect}){
     <div className="card" style={{overflow:"hidden"}}>
       <table style={{width:"100%",borderCollapse:"collapse"}}>
         <thead><tr style={{borderBottom:"1px solid #1a2030"}}>
-          {["Member","Phone","Tier","Points","Referred By","Joined"].map(h=><th key={h} style={{padding:"14px 20px",textAlign:"left",fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</th>)}
+          {["Member","Phone","Tier","Points","Referred By","Birthday","Joined"].map(h=><th key={h} style={{padding:"14px 20px",textAlign:"left",fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</th>)}
         </tr></thead>
         <tbody>
           {filtered.map(m=>{
@@ -415,6 +415,7 @@ function Members({ctx,onSelect}){
               <td style={{padding:"14px 20px"}}><TierBadge tier={tier}/></td>
               <td style={{padding:"14px 20px",fontWeight:700,color:tier.color,fontSize:14}}>{m.points.toLocaleString()}</td>
               <td style={{padding:"14px 20px",color:"#6677aa",fontSize:13}}>{ref?ref.name:<span style={{color:"#2a3a55"}}>—</span>}</td>
+              <td style={{padding:"14px 20px",color:"#f59e0b",fontSize:12}}>{m.birthday?new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):<span style={{color:"#2a3a55"}}>—</span>}</td>
               <td style={{padding:"14px 20px",color:"#5566aa",fontSize:12}}>{m.joinedAt}</td>
             </tr>;
           })}
@@ -427,7 +428,7 @@ function Members({ctx,onSelect}){
 // ─── ENROLL ───────────────────────────────────────────────────────────────────
 function Enroll({ctx,onDone}){
   const {members,enrollMember,showToast}=ctx;
-  const [form,setForm]=useState({name:"",phone:"",ref:"",pin:""});
+  const [form,setForm]=useState({name:"",phone:"",ref:"",pin:"",birthday:""});
   const [err,setErr]=useState({});
   const submit=()=>{
     const e={};
@@ -436,9 +437,9 @@ function Enroll({ctx,onDone}){
     if(form.pin&&!/^\d{4}$/.test(form.pin))e.pin="PIN must be exactly 4 digits";
     if(Object.keys(e).length){setErr(e);return;}
     const pin=form.pin||"0000";
-    const m=enrollMember(form.name.trim(),form.phone,form.ref||null,pin);
+    const m=enrollMember(form.name.trim(),form.phone,form.ref||null,pin,form.birthday||"");
     showToast(`${m.name} enrolled! PIN: ${pin}`);
-    setForm({name:"",phone:"",ref:"",pin:""});setErr({});
+    setForm({name:"",phone:"",ref:"",pin:"",birthday:""});setErr({});
   };
   return <div className="fi" style={{maxWidth:520}}>
     <div style={{marginBottom:28}}>
@@ -468,6 +469,12 @@ function Enroll({ctx,onDone}){
         <input className="inp" placeholder="e.g. 1234 — leave blank for 0000" maxLength={4} value={form.pin} onChange={e=>setForm(f=>({...f,pin:e.target.value.replace(/\D/g,"").slice(0,4)}))}/>
         {err.pin&&<div style={{color:"#ff6b6b",fontSize:12,marginTop:5}}>{err.pin}</div>}
         <div style={{fontSize:11,color:"#445566",marginTop:5}}>Member uses this PIN to log in on the Member Portal</div>
+      </div>
+      <div>
+        <label className="lbl">Date of Birth <span style={{color:"#2a3a55",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label>
+        <input className="inp" type="date" value={form.birthday} onChange={e=>setForm(f=>({...f,birthday:e.target.value}))}
+          style={{colorScheme:"dark"}}/>
+        <div style={{fontSize:11,color:"#445566",marginTop:5}}>Used for birthday month WhatsApp campaigns</div>
       </div>
       <div style={{display:"flex",gap:12}}>
         <button className="btn" onClick={submit}>⊕ Enroll Member</button>
@@ -528,6 +535,8 @@ function Profile({ctx,memberId,onBack}){
   const {members,tiers,refLevels,setMembers,showToast}=ctx;
   const [resetPin,setResetPin]=useState("");
   const [showReset,setShowReset]=useState(false);
+  const [showBday,setShowBday]=useState(false);
+  const [editBday,setEditBday]=useState(member?.birthday||"");
   const member=members.find(m=>m.id===memberId);if(!member)return null;
   const tier=getTier(member.points,tiers);
   const nextTier=tiers.find(t=>t.minPoints>member.points);
@@ -548,7 +557,7 @@ function Profile({ctx,memberId,onBack}){
           <div><div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:"#e8eaf0"}}>{member.name}</div><TierBadge tier={tier}/></div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
+          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Date of Birth",v:member.birthday?new Date(member.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"long",year:"numeric"}):"Not set"},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
             <div key={r.l} style={{display:"flex",justifyContent:"space-between"}}>
               <span style={{color:"#5566aa",fontSize:13}}>{r.l}</span>
               <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{r.v}</span>
@@ -577,21 +586,39 @@ function Profile({ctx,memberId,onBack}){
           ))}
         </div>
       </div>
-      <div className="card" style={{padding:"24px 26px",gridColumn:"1/-1"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showReset?16:0}}>
-          <div>
-            <div style={{fontWeight:700,color:"#ccd",fontSize:15}}>Member PIN</div>
-            <div style={{fontSize:12,color:"#445566",marginTop:2}}>Current PIN: <span style={{color:"#f59e0b",fontWeight:600,letterSpacing:2}}>{member.pin||"0000"}</span></div>
+      <div className="card" style={{padding:"24px 26px",gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showReset?16:0}}>
+            <div>
+              <div style={{fontWeight:700,color:"#ccd",fontSize:15}}>Member PIN</div>
+              <div style={{fontSize:12,color:"#445566",marginTop:2}}>Current PIN: <span style={{color:"#f59e0b",fontWeight:600,letterSpacing:2}}>{member.pin||"0000"}</span></div>
+            </div>
+            <button className="btn-g" onClick={()=>setShowReset(s=>!s)} style={{fontSize:12}}>{showReset?"Cancel":"Reset PIN"}</button>
           </div>
-          <button className="btn-g" onClick={()=>setShowReset(s=>!s)} style={{fontSize:12}}>{showReset?"Cancel":"Reset PIN"}</button>
+          {showReset&&<div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+            <div style={{flex:1}}>
+              <label className="lbl">New 4-digit PIN</label>
+              <input className="inp" maxLength={4} placeholder="e.g. 5678" value={resetPin} onChange={e=>setResetPin(e.target.value.replace(/\D/g,"").slice(0,4))} onKeyDown={e=>e.key==="Enter"&&doResetPin()}/>
+            </div>
+            <button className="btn" onClick={doResetPin} style={{whiteSpace:"nowrap"}}>Save PIN</button>
+          </div>}
         </div>
-        {showReset&&<div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
-          <div style={{flex:1}}>
-            <label className="lbl">New 4-digit PIN</label>
-            <input className="inp" maxLength={4} placeholder="e.g. 5678" value={resetPin} onChange={e=>setResetPin(e.target.value.replace(/\D/g,"").slice(0,4))} onKeyDown={e=>e.key==="Enter"&&doResetPin()}/>
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showBday?16:0}}>
+            <div>
+              <div style={{fontWeight:700,color:"#ccd",fontSize:15}}>Date of Birth</div>
+              <div style={{fontSize:12,color:"#445566",marginTop:2}}>{member.birthday?new Date(member.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"long",year:"numeric"}):<span style={{color:"#2a3a55"}}>Not set</span>}</div>
+            </div>
+            <button className="btn-g" onClick={()=>setShowBday(s=>!s)} style={{fontSize:12}}>{showBday?"Cancel":"Edit"}</button>
           </div>
-          <button className="btn" onClick={doResetPin} style={{whiteSpace:"nowrap"}}>Save PIN</button>
-        </div>}
+          {showBday&&<div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+            <div style={{flex:1}}>
+              <label className="lbl">Date of Birth</label>
+              <input className="inp" type="date" value={editBday} onChange={e=>setEditBday(e.target.value)} style={{colorScheme:"dark"}}/>
+            </div>
+            <button className="btn" onClick={()=>{setMembers(prev=>prev.map(m=>m.id===memberId?{...m,birthday:editBday}:m));showToast("Birthday updated!");setShowBday(false);}} style={{whiteSpace:"nowrap"}}>Save</button>
+          </div>}
+        </div>
       </div>
       {downline.length>0&&<div className="card" style={{padding:"24px 26px",gridColumn:"1/-1"}}>
         <div style={{fontWeight:700,color:"#ccd",marginBottom:16,fontSize:15}}>Referral Network ({downline.length})</div>
@@ -820,6 +847,385 @@ const DEFAULT_WA_TEMPLATES = [
 ];
 
 function WhatsAppBlast({ctx}){
+  const {members,tiers,waTemplates,setWaTemplates,showToast}=ctx;
+  const templates=(waTemplates||DEFAULT_WA_TEMPLATES);
+  const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const currentMonth=new Date().getMonth(); // 0-indexed
+
+  const [tab,setTab]=useState("blast"); // blast | manage
+  const [step,setStep]=useState("compose");
+  const [templateId,setTemplateId]=useState(templates[0]?.id||"");
+  const [customText,setCustomText]=useState("");
+  const [useCustom,setUseCustom]=useState(false);
+  const [recipients,setRecipients]=useState("all"); // all | tier | birthday | select
+  const [selTier,setSelTier]=useState("");
+  const [selBdayMonth,setSelBdayMonth]=useState(String(currentMonth));
+  const [selIds,setSelIds]=useState([]);
+  const [sentIdx,setSentIdx]=useState(-1);
+  const [sendLog,setSendLog]=useState([]);
+
+  // Template editor state
+  const [editing,setEditing]=useState(null);
+  const [editErr,setEditErr]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  const saveTemplates=async(next)=>{
+    setSaving(true);
+    try{
+      await window.storage.set(KEYS.waTemplates,JSON.stringify(next),true);
+      setWaTemplates(next);
+      showToast("Templates saved!");
+    }catch(e){showToast("Failed to save","error");}
+    setSaving(false);
+  };
+
+  const startEdit=(t)=>setEditing({...t});
+  const startNew=()=>setEditing({id:genId(),label:"",icon:"📢",text:"",isNew:true});
+  const saveEdit=async()=>{
+    if(!editing.label.trim()){setEditErr("Name is required.");return;}
+    if(!editing.text.trim()){setEditErr("Message text is required.");return;}
+    setEditErr("");
+    const next=editing.isNew
+      ?[...templates,{id:editing.id,label:editing.label,icon:editing.icon,text:editing.text}]
+      :templates.map(t=>t.id===editing.id?{id:t.id,label:editing.label,icon:editing.icon,text:editing.text}:t);
+    await saveTemplates(next);setEditing(null);
+  };
+  const deleteTemplate=async(id)=>{
+    if(templates.length<=1){showToast("Must keep at least one template","error");return;}
+    const next=templates.filter(t=>t.id!==id);
+    await saveTemplates(next);
+    if(templateId===id)setTemplateId(next[0]?.id||"");
+  };
+
+  const template=templates.find(t=>t.id===templateId)||templates[0];
+
+  const getBirthdayList=(monthIdx)=>members.filter(m=>{
+    if(!m.birthday)return false;
+    return new Date(m.birthday+"T00:00:00").getMonth()===parseInt(monthIdx);
+  });
+
+  const getRecipients=()=>{
+    if(recipients==="all") return members;
+    if(recipients==="tier") return members.filter(m=>getTier(m.points,tiers).id===selTier);
+    if(recipients==="birthday") return getBirthdayList(selBdayMonth);
+    return members.filter(m=>selIds.includes(m.id));
+  };
+
+  const buildMsg=(member,rawText)=>{
+    const tier=getTier(member.points,tiers);
+    const bdayMonth=member.birthday?MONTHS[new Date(member.birthday+"T00:00:00").getMonth()]:"";
+    return (rawText||"")
+      .replace(/{name}/g,     member.name.split(" ")[0])
+      .replace(/{fullname}/g, member.name)
+      .replace(/{points}/g,   member.points.toLocaleString())
+      .replace(/{tier}/g,     tier.name)
+      .replace(/{multiplier}/g, tier.multiplier)
+      .replace(/{birthday}/g, bdayMonth);
+  };
+
+  const waLink=(phone,msg)=>{
+    const num=phone.replace(/\D/g,"");
+    const intl=num.startsWith("0")?"60"+num.slice(1):num;
+    return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
+  };
+
+  const msgText=useCustom?customText:template?.text||"";
+  const list=getRecipients();
+  const bdayList=getBirthdayList(selBdayMonth);
+
+  const sendAll=()=>{setSentIdx(0);setSendLog([]);setStep("sending");};
+  const reset=()=>{setSentIdx(-1);setSendLog([]);setStep("compose");};
+  const toggleId=(id)=>setSelIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+
+  useEffect(()=>{
+    if(step!=="sending"||sentIdx<0||sentIdx>=list.length)return;
+    const member=list[sentIdx];
+    const msg=buildMsg(member,msgText);
+    window.open(waLink(member.phone,msg),"_blank");
+    setSendLog(l=>[...l,{name:member.name,phone:member.phone}]);
+    const timer=setTimeout(()=>{
+      if(sentIdx+1<list.length)setSentIdx(i=>i+1);
+      else setStep("done");
+    },1500);
+    return()=>clearTimeout(timer);
+  },[sentIdx,step]);
+
+  // ── DONE ──
+  if(step==="done")return(
+    <div className="fi" style={{maxWidth:560}}>
+      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0",marginBottom:24}}>WhatsApp Blast</h1>
+      <div className="card" style={{padding:"32px",textAlign:"center"}}>
+        <div style={{fontSize:56,marginBottom:16}}>✅</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#e8eaf0",marginBottom:8}}>Blast Complete</div>
+        <div style={{color:"#5566aa",fontSize:14,marginBottom:24}}>{sendLog.length} messages opened via WhatsApp</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:260,overflowY:"auto",marginBottom:24,textAlign:"left"}}>
+          {sendLog.map((l,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"9px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
+              <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{l.name}</span>
+              <span style={{color:"#4ade80",fontSize:12}}>✓ {l.phone}</span>
+            </div>
+          ))}
+        </div>
+        <button className="btn" onClick={reset}>Send Another Blast</button>
+      </div>
+    </div>
+  );
+
+  // ── SENDING ──
+  if(step==="sending")return(
+    <div className="fi" style={{maxWidth:560}}>
+      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0",marginBottom:24}}>WhatsApp Blast</h1>
+      <div className="card" style={{padding:"32px",textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:16,animation:"spin 1.5s linear infinite",display:"inline-block"}}>💬</div>
+        <div style={{color:"#e8eaf0",fontSize:16,fontWeight:600,marginBottom:4}}>Sending {sentIdx+1} of {list.length}</div>
+        <div style={{color:"#5566aa",fontSize:13,marginBottom:20}}>{list[sentIdx]?.name} · {list[sentIdx]?.phone}</div>
+        <div style={{background:"#0a0f1a",borderRadius:10,height:6,overflow:"hidden",marginBottom:20}}>
+          <div style={{height:"100%",background:"linear-gradient(90deg,#25d366,#128c7e)",borderRadius:10,width:`${((sentIdx+1)/list.length)*100}%`,transition:"width .4s ease"}}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto",textAlign:"left",marginBottom:14}}>
+          {sendLog.map((l,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"#0d2a1a",borderRadius:8,border:"1px solid #1a4a2a"}}>
+              <span style={{color:"#ccd",fontSize:12}}>{l.name}</span>
+              <span style={{color:"#4ade80",fontSize:11}}>✓ Opened</span>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:"#2a3a4a"}}>Allow pop-ups if prompted by your browser.</div>
+      </div>
+    </div>
+  );
+
+  // ── MAIN ──
+  return(
+    <div className="fi" style={{maxWidth:720}}>
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>WhatsApp Blast</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Send personalised messages to members via WhatsApp</p>
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:22}}>
+        {[{id:"blast",label:"💬 Send Blast"},{id:"manage",label:"✏️ Manage Templates"}].map(t=>(
+          <button key={t.id} onClick={()=>{setTab(t.id);setEditing(null);}}
+            style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
+              background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+              color:tab===t.id?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MANAGE TEMPLATES ── */}
+      {tab==="manage"&&<div>
+        {editing&&<div className="card si" style={{padding:"24px 26px",marginBottom:20}}>
+          <div style={{fontWeight:700,color:"#e8eaf0",fontSize:15,marginBottom:18}}>{editing.isNew?"New Template":"Edit Template"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"60px 1fr",gap:14,marginBottom:14}}>
+            <div>
+              <label className="lbl">Icon</label>
+              <input className="inp" value={editing.icon} maxLength={2} onChange={e=>setEditing(v=>({...v,icon:e.target.value}))} style={{textAlign:"center",fontSize:20,padding:"10px 4px"}}/>
+            </div>
+            <div>
+              <label className="lbl">Template Name</label>
+              <input className="inp" placeholder="e.g. Birthday Greeting" value={editing.label} onChange={e=>setEditing(v=>({...v,label:e.target.value}))}/>
+            </div>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label className="lbl">Message Text</label>
+            <textarea value={editing.text} onChange={e=>setEditing(v=>({...v,text:e.target.value}))}
+              placeholder={"Hi {name}! Wishing you a wonderful birthday this {birthday}! Enjoy {points} pts."}
+              style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
+                color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
+                resize:"vertical",outline:"none",lineHeight:1.7,marginTop:4}}/>
+            <div style={{marginTop:6,fontSize:11,color:"#2a3a55"}}>
+              Placeholders: <span style={{color:"#445577"}}>{"{name}"}</span> · <span style={{color:"#445577"}}>{"{fullname}"}</span> · <span style={{color:"#445577"}}>{"{points}"}</span> · <span style={{color:"#445577"}}>{"{tier}"}</span> · <span style={{color:"#445577"}}>{"{multiplier}"}</span> · <span style={{color:"#f59e0b"}}>{"{birthday}"}</span> (birth month)
+            </div>
+          </div>
+          {editing.text&&<div style={{background:"#0a1a10",border:"1px solid #1a3a1a",borderRadius:10,padding:"14px",marginBottom:14}}>
+            <div style={{fontSize:11,color:"#4a7a4a",fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:8}}>Preview</div>
+            <div style={{fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap"}}>
+              {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"1990-03-15"},editing.text)}
+            </div>
+          </div>}
+          {editErr&&<div style={{color:"#f87171",fontSize:13,marginBottom:12,background:"#2a0d0d",borderRadius:8,padding:"8px 12px"}}>{editErr}</div>}
+          <div style={{display:"flex",gap:10}}>
+            <button className="btn" onClick={saveEdit} style={{opacity:saving?0.6:1}} disabled={saving}>{saving?"Saving…":"💾 Save Template"}</button>
+            <button className="btn-g" onClick={()=>{setEditing(null);setEditErr("");}}>Cancel</button>
+          </div>
+        </div>}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {templates.map(t=>(
+            <div key={t.id} className="card" style={{padding:"18px 20px",display:"flex",gap:14,alignItems:"flex-start"}}>
+              <div style={{fontSize:28,flexShrink:0,marginTop:2}}>{t.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,color:"#e8eaf0",fontSize:14,marginBottom:4}}>{t.label}</div>
+                <div style={{fontSize:12,color:"#445566",lineHeight:1.6,whiteSpace:"pre-wrap",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical"}}>{t.text}</div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
+                <button className="btn-g" onClick={()=>startEdit(t)} style={{fontSize:12,padding:"7px 14px"}}>✏️ Edit</button>
+                {templates.length>1&&<button className="btn-d" onClick={()=>deleteTemplate(t.id)} style={{fontSize:12,padding:"7px 14px"}}>✕</button>}
+              </div>
+            </div>
+          ))}
+          <button className="btn-g" onClick={startNew} style={{alignSelf:"flex-start",padding:"10px 20px"}}>⊕ Add New Template</button>
+        </div>
+      </div>}
+
+      {/* ── BLAST TAB ── */}
+      {tab==="blast"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+
+        {/* LEFT — compose */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">Message Template</label>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+              {templates.map(t=>(
+                <button key={t.id} onClick={()=>{setTemplateId(t.id);setUseCustom(false);}}
+                  style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
+                    background:templateId===t.id&&!useCustom?"#0d2a1a":"#0a0f1a",
+                    border:`1px solid ${templateId===t.id&&!useCustom?"#1a5a2a":"#1e2535"}`,
+                    color:templateId===t.id&&!useCustom?"#4ade80":"#6677aa",
+                    fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+              <button onClick={()=>setUseCustom(true)}
+                style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
+                  background:useCustom?"#1a1a0d":"#0a0f1a",border:`1px solid ${useCustom?"#4a4a1a":"#1e2535"}`,
+                  color:useCustom?"#f5c842":"#6677aa",fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
+                ✏️ One-time Custom Message
+              </button>
+            </div>
+          </div>
+          <div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">{useCustom?"Your Message":"Message Preview"}</label>
+            {useCustom
+              ?<textarea value={customText} onChange={e=>setCustomText(e.target.value)}
+                  placeholder={"Hi {name}! Use {points}, {tier}, {birthday} as placeholders."}
+                  style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
+                    color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
+                    resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}/>
+              :<div style={{background:"#0a0f1a",borderRadius:10,padding:"14px",border:"1px solid #1e2535",
+                  fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap",marginTop:4,minHeight:100}}>
+                {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"1990-03-15"},msgText)}
+              </div>
+            }
+            <div style={{marginTop:8,fontSize:11,color:"#2a3a55"}}>
+              Placeholders: <span style={{color:"#445566"}}>{"{name}"}</span> · <span style={{color:"#445566"}}>{"{points}"}</span> · <span style={{color:"#445566"}}>{"{tier}"}</span> · <span style={{color:"#f59e0b"}}>{"{birthday}"}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT — recipients */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">Recipients</label>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+              {[
+                {v:"all",     l:`🌐 All Members (${members.length})`},
+                {v:"birthday",l:`🎂 By Birthday Month`},
+                {v:"tier",    l:`🏅 By Tier`},
+                {v:"select",  l:`☑️ Select Individually`},
+              ].map(o=>(
+                <button key={o.v} onClick={()=>setRecipients(o.v)}
+                  style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
+                    background:recipients===o.v?"#0d1a2a":"#0a0f1a",
+                    border:`1px solid ${recipients===o.v?"#1a3050":"#1e2535"}`,
+                    color:recipients===o.v?"#60a5fa":"#6677aa",
+                    fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
+                  {o.l}
+                </button>
+              ))}
+            </div>
+
+            {recipients==="birthday"&&<div style={{marginTop:14}}>
+              <label className="lbl">Select Month</label>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginTop:6}}>
+                {MONTHS.map((m,i)=>{
+                  const cnt=getBirthdayList(i).length;
+                  const isThis=i===currentMonth;
+                  const isSel=selBdayMonth===String(i);
+                  return(
+                    <button key={i} onClick={()=>setSelBdayMonth(String(i))}
+                      style={{padding:"8px 4px",borderRadius:8,fontSize:11,fontWeight:600,textAlign:"center",
+                        background:isSel?"#0d1a2a":isThis?"#0a1a10":"#0a0f1a",
+                        border:`1px solid ${isSel?"#1a3050":isThis?"#1a4a2a":"#1e2535"}`,
+                        color:isSel?"#60a5fa":isThis?"#4ade80":cnt>0?"#8899bb":"#2a3a4a",
+                        fontFamily:"'DM Sans',sans-serif",transition:"all .15s",cursor:"pointer"}}>
+                      {m.slice(0,3)}<br/>
+                      <span style={{fontSize:10,opacity:.7}}>{cnt} member{cnt!==1?"s":""}</span>
+                      {isThis&&<div style={{fontSize:9,color:"#4ade80",marginTop:2}}>● now</div>}
+                    </button>
+                  );
+                })}
+              </div>
+              {bdayList.length===0&&<div style={{marginTop:10,fontSize:12,color:"#445566",background:"#0a0f1a",borderRadius:8,padding:"10px 14px"}}>
+                No members with birthdays in {MONTHS[parseInt(selBdayMonth)]}. Add birthdays in member profiles.
+              </div>}
+              {bdayList.length>0&&<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6,maxHeight:160,overflowY:"auto"}}>
+                {bdayList.map(m=>{const t=getTier(m.points,tiers);return(
+                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#0d1a2a",borderRadius:8,border:"1px solid #1a3050"}}>
+                    <span style={{fontSize:16}}>🎂</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
+                      <div style={{fontSize:11,color:"#445566"}}>{m.birthday?new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):""}</div>
+                    </div>
+                    <span style={{fontSize:10,color:t.color,background:`${t.color}18`,padding:"2px 8px",borderRadius:99,fontWeight:700}}>{t.name}</span>
+                  </div>
+                );})}
+              </div>}
+            </div>}
+
+            {recipients==="tier"&&<div style={{marginTop:12}}>
+              <label className="lbl">Select Tier</label>
+              <select className="inp" value={selTier} onChange={e=>setSelTier(e.target.value)}>
+                <option value="">— Choose tier —</option>
+                {tiers.map(t=>{const cnt=members.filter(m=>getTier(m.points,tiers).id===t.id).length;return<option key={t.id} value={t.id}>{t.icon} {t.name} ({cnt})</option>;})}
+              </select>
+            </div>}
+
+            {recipients==="select"&&<div style={{marginTop:12,display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
+              {members.map(m=>{const t=getTier(m.points,tiers);return(
+                <label key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
+                  background:selIds.includes(m.id)?"#0d1a2a":"#0a0f1a",borderRadius:10,
+                  border:`1px solid ${selIds.includes(m.id)?"#1a3050":"#1e2535"}`,cursor:"pointer"}}>
+                  <input type="checkbox" checked={selIds.includes(m.id)} onChange={()=>toggleId(m.id)} style={{accentColor:"#f59e0b",width:16,height:16}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
+                    <div style={{fontSize:11,color:"#445566"}}>{m.phone}{m.birthday?" · 🎂 "+new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):""}</div>
+                  </div>
+                  <span style={{fontSize:10,color:t.color,fontWeight:700,background:`${t.color}18`,padding:"2px 8px",borderRadius:99}}>{t.name}</span>
+                </label>
+              );})}
+            </div>}
+          </div>
+
+          {/* Summary + send */}
+          <div className="card" style={{padding:"22px 24px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+              <span style={{color:"#5566aa",fontSize:13}}>Recipients</span>
+              <span style={{color:"#f59e0b",fontWeight:700,fontSize:15}}>{list.length} member{list.length!==1?"s":""}</span>
+            </div>
+            {recipients==="birthday"&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+              <span style={{color:"#5566aa",fontSize:13}}>Birth Month</span>
+              <span style={{color:"#f59e0b",fontSize:13,fontWeight:600}}>🎂 {MONTHS[parseInt(selBdayMonth)]}</span>
+            </div>}
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}>
+              <span style={{color:"#5566aa",fontSize:13}}>Template</span>
+              <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{useCustom?"✏️ Custom":template?.icon+" "+template?.label}</span>
+            </div>
+            <div style={{background:"#0a1a0d",border:"1px solid #1a3a1a",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#4a7a4a",lineHeight:1.6}}>
+              📱 WhatsApp opens for each recipient with message pre-filled. Confirm each send manually.
+            </div>
+            <button className="btn" onClick={sendAll}
+              disabled={list.length===0||!msgText.trim()}
+              style={{width:"100%",background:"linear-gradient(135deg,#25d366,#128c7e)",opacity:list.length===0||!msgText.trim()?0.4:1}}>
+              💬 Send to {list.length} Member{list.length!==1?"s":""}
+            </button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}){
   const {members,tiers,waTemplates,setWaTemplates,showToast}=ctx;
   const templates=(waTemplates||DEFAULT_WA_TEMPLATES);
   const [tab,setTab]=useState("blast"); // blast | manage
