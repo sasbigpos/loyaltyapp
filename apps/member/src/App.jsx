@@ -669,7 +669,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
               value={pinForm[key]}
               onChange={e=>{ setPinForm(f=>({...f,[key]:e.target.value.replace(/\D/g,"").slice(0,4)})); setPinErr(""); setPinOk(""); }}
               onKeyDown={e=>e.key==="Enter"&&changePin()}
-              style={{width:"100%",background:"#f7f0e8",border:"1px solid #e0d4c0",borderRadius:10,color:"#2a1a0a",padding:"16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",letterSpacing:8,outline:"none",-webkit-text-security:"disc"}}/>
+              style={{width:"100%",background:"#f7f0e8",border:"1px solid #e0d4c0",borderRadius:10,color:"#2a1a0a",padding:"16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",letterSpacing:8,outline:"none"}}/>
           </div>
         ))}
         {pinErr&&<div className="sans" style={{color:"#dc2626",fontSize:12,marginTop:10,background:"#fff0f0",borderRadius:8,padding:"8px 12px",border:"1px solid #fca5a5"}}>{pinErr}</div>}
