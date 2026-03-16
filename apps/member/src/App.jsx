@@ -629,6 +629,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
         {label:"Member ID",val:member.id},{label:"Total Points",val:`${member.points.toLocaleString()} pts`},
         {label:"Tier Multiplier",val:`×${tier.multiplier} (${tier.name})`},{label:"Referral Code",val:member.referralCode||"—"},
         {label:"Referred By",val:referrer?referrer.name:"—"},{label:"Network Size",val:`${downline.length} members`},
+        {label:"Date of Birth",val:member.birthday?new Date(member.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"long",year:"numeric"}):"Not set"},
         {label:"Joined",val:member.joinedAt},
       ].map((r,i)=>(
         <div key={r.label} className="fu" style={{display:"flex",justifyContent:"space-between",padding:"14px 16px",background:"#fff8f0",borderRadius:12,marginBottom:8,border:"1px solid #e8ddd0",animationDelay:`${i*.06}s`}}>
