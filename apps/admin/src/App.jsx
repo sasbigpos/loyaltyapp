@@ -51,8 +51,16 @@ function getDownline(members,rootId,maxDepth){
 }
 
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
-const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw", waTemplates:"lc:waTemplates", config:"lc:config" };
+const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw", waTemplates:"lc:waTemplates", config:"lc:config", rewards:"lc:rewards" };
 const DEFAULT_CONFIG = { welcomeEnabled:true, welcomePts:100 };
+const DEFAULT_REWARDS = [
+  { id:"rw1", name:"Free Dessert",     pts:200,  icon:"🍰", category:"Dining",   active:true },
+  { id:"rw2", name:"Room Upgrade",     pts:500,  icon:"🏨", category:"Stay",     active:true },
+  { id:"rw3", name:"Spa 30 min",       pts:800,  icon:"💆", category:"Wellness", active:true },
+  { id:"rw4", name:"Airport Transfer", pts:1200, icon:"🚗", category:"Travel",   active:true },
+  { id:"rw5", name:"Chef's Table",    pts:1500, icon:"🍽️", category:"Dining",   active:true },
+  { id:"rw6", name:"Weekend Getaway",  pts:4000, icon:"🌴", category:"Stay",     active:true },
+];
 
 async function loadAll() {
   try {
@@ -98,6 +106,7 @@ export default function AdminApp() {
   const [adminPw,   setAdminPw]        = useState(null);
   const [waTemplates,setWaTemplates]   = useState(null);
   const [appConfig,  setAppConfig]     = useState(DEFAULT_CONFIG);
+  const [rewards,    setRewards]       = useState(DEFAULT_REWARDS);
   const [pwReady,   setPwReady]        = useState(false);
   const [members,   setMembersState]   = useState(SEED_MEMBERS);
   const [tiers,     setTiersState]     = useState(DEFAULT_TIERS);
@@ -127,17 +136,19 @@ export default function AdminApp() {
           window.storage.get(key, true).catch(()=>null),
           timeout(2000).then(()=>null)
         ]);
-        const [mr,tr,rr,pr,wr,cr] = await Promise.all([
+        const [mr,tr,rr,pr,wr,cr,rwR] = await Promise.all([
           safeGet(KEYS.members),
           safeGet(KEYS.tiers),
           safeGet(KEYS.refLevels),
           safeGet(KEYS.adminPw),
           safeGet(KEYS.waTemplates),
           safeGet(KEYS.config),
+          safeGet(KEYS.rewards),
         ]);
         if(pr) setAdminPw(pr.value);
         if(wr) setWaTemplates(JSON.parse(wr.value));
         if(cr) setAppConfig(JSON.parse(cr.value));
+        if(rwR) setRewards(JSON.parse(rwR.value));
         setPwReady(true);
         const members   = mr ? JSON.parse(mr.value) : SEED_MEMBERS;
         const tiers     = tr ? JSON.parse(tr.value) : DEFAULT_TIERS;
@@ -233,7 +244,7 @@ export default function AdminApp() {
     </div>
   );
 
-  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig};
+  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards};
 
   return (
     <div style={{minHeight:"100vh",background:"#080c12",color:"#e8eaf0",fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex"}}>
@@ -274,7 +285,7 @@ export default function AdminApp() {
           </div>
           <div style={{fontSize:9,color:"#2a3a4a",letterSpacing:2,textTransform:"uppercase"}}>Admin Portal</div>
         </div>
-        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"deduct",icon:"◇",label:"Deduct Points"},{id:"whatsapp",icon:"💬",label:"WhatsApp Blast"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
+        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"redeem",icon:"🎁",label:"Redeem Rewards"},{id:"whatsapp",icon:"💬",label:"WhatsApp Blast"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
           <div key={n.id} className={`nav${view===n.id?" on":""}`} onClick={()=>{setView(n.id);setSelId(null);}}>
             <span style={{fontSize:16}}>{n.icon}</span>{n.label}
           </div>
@@ -298,7 +309,7 @@ export default function AdminApp() {
         {view==="points"    && <AwardPts  ctx={ctx}/>}
         {view==="config"    && <Config    ctx={ctx}/>}
         {view==="whatsapp"  && <WhatsAppBlast ctx={ctx}/>}
-        {view==="deduct"    && <DeductPts  ctx={ctx}/>}
+        {view==="redeem"    && <RedeemRewards ctx={ctx}/>}
         {view==="profile"   && selId && <Profile ctx={ctx} memberId={selId} onBack={()=>setView("members")}/>}
       </div>
 
@@ -651,453 +662,80 @@ function Profile({ctx,memberId,onBack}){
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-// ─── DEDUCT POINTS ────────────────────────────────────────────────────────────
-// Deducts points from a single member only — no referral cascade.
-function DeductPts({ctx}){
-  const {members,tiers,setMembers,showToast}=ctx;
-  const [sel,setSel]=useState("");
-  const [raw,setRaw]=useState("");
-  const [note,setNote]=useState("");
-  const [confirm,setConfirm]=useState(false);
-  const member=members.find(m=>m.id===sel);
-  const tier=member?getTier(member.points,tiers):null;
-  const pts=Math.min(parseInt(raw)||0, member?.points||0);
-  const remaining=member?member.points-pts:0;
+// ─── REDEEM REWARDS ──────────────────────────────────────────────────────────
+function RedeemRewards({ctx}){
+  const {members,tiers,rewards=[],setRewards,setMembers,showToast}=ctx;
+  const [tab,setTab]=useState("redeem"); // redeem | manage
 
-  const reset=()=>{setSel("");setRaw("");setNote("");setConfirm(false);};
-
-  const doDeduct=()=>{
-    if(!member||pts<=0)return;
-    const label=note||"Point Deduction";
-    setMembers(prev=>prev.map(m=>m.id===member.id
-      ?{...m,points:m.points-pts,transactions:[{id:genId(),pts:-pts,icon:"◇",label,date:today(),type:"redeem"},...m.transactions]}
-      :m
-    ));
-    showToast(`${pts.toLocaleString()} pts deducted from ${member.name}.`);
-    reset();
-  };
-
-  return <div className="fi" style={{maxWidth:520}}>
-    <div style={{marginBottom:28}}>
-      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Deduct Points</h1>
-      <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Deducts directly from the member only — referrals are not affected</p>
-    </div>
-
-    <div style={{background:"#1a0d0d",border:"1px solid #3a1a1a",borderRadius:12,padding:"12px 18px",marginBottom:22,display:"flex",gap:12,alignItems:"flex-start"}}>
-      <span style={{fontSize:18,flexShrink:0}}>⚠️</span>
-      <div style={{fontSize:13,color:"#aa7777",lineHeight:1.6}}>
-        This action <strong style={{color:"#ff9999"}}>only deducts from the selected member</strong>. Referral uplines are not notified and their points are not touched.
-      </div>
-    </div>
-
-    <div className="card" style={{padding:"28px 30px",display:"flex",flexDirection:"column",gap:18}}>
-      <div>
-        <label className="lbl">Select Member</label>
-        <select className="inp" value={sel} onChange={e=>{setSel(e.target.value);setConfirm(false);}}>
-          <option value="">— Choose member —</option>
-          {members.map(m=>{const t=getTier(m.points,tiers);return <option key={m.id} value={m.id}>{m.name} · {t.name} · {m.points.toLocaleString()} pts</option>;})}
-        </select>
-      </div>
-
-      {member&&<div style={{background:"#0a1020",borderRadius:10,padding:"12px 16px",border:"1px solid #1a2535",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontWeight:700,color:"#ccd",fontSize:15}}>{member.name}</div>
-          <div style={{color:"#6677aa",fontSize:12,marginTop:2}}>{member.phone}</div>
-        </div>
-        <div style={{textAlign:"right"}}>
-          <TierBadge tier={tier}/>
-          <div style={{fontSize:13,color:"#f59e0b",fontWeight:700,marginTop:4}}>{member.points.toLocaleString()} pts</div>
-        </div>
-      </div>}
-
-      <div>
-        <label className="lbl">Points to Deduct</label>
-        <input className="inp" type="number" min="1" max={member?.points||0} placeholder="e.g. 200"
-          value={raw} onChange={e=>{setRaw(e.target.value);setConfirm(false);}}/>
-        {member&&raw&&parseInt(raw)>member.points&&<div style={{color:"#f87171",fontSize:12,marginTop:5}}>Cannot exceed available balance of {member.points.toLocaleString()} pts</div>}
-      </div>
-
-      <div>
-        <label className="lbl">Reason <span style={{color:"#2a3a55",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label>
-        <input className="inp" placeholder="e.g. Correction, Manual adjustment" value={note} onChange={e=>setNote(e.target.value)}/>
-      </div>
-
-      {/* Preview */}
-      {member&&pts>0&&parseInt(raw)<=member.points&&<div style={{background:"#1a0d0d",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#f87171",letterSpacing:.8,marginBottom:12,textTransform:"uppercase"}}>Preview</div>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{color:"#aa7777",fontSize:13}}>Current Balance</span>
-          <span style={{color:"#ccd",fontWeight:600}}>{member.points.toLocaleString()} pts</span>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{color:"#aa7777",fontSize:13}}>Deduction</span>
-          <span style={{color:"#f87171",fontWeight:700}}>−{pts.toLocaleString()} pts</span>
-        </div>
-        <div style={{borderTop:"1px solid #3a1a1a",paddingTop:10,display:"flex",justifyContent:"space-between"}}>
-          <span style={{color:"#aa7777",fontSize:13}}>Remaining Balance</span>
-          <span style={{color:remaining>0?"#4ade80":"#f59e0b",fontWeight:800,fontSize:16}}>{remaining.toLocaleString()} pts</span>
-        </div>
-        <div style={{marginTop:10,fontSize:11,color:"#5a3a3a",padding:"8px 10px",background:"#0d0505",borderRadius:8}}>
-          Referral uplines: <strong style={{color:"#7a4a4a"}}>not affected</strong>
-        </div>
-      </div>}
-
-      {/* Confirm toggle */}
-      {member&&pts>0&&parseInt(raw)<=member.points&&!confirm&&
-        <button className="btn-d" onClick={()=>setConfirm(true)}>◇ Deduct {pts.toLocaleString()} pts from {member.name}</button>}
-
-      {confirm&&<div style={{background:"#1a0505",border:"1px solid #5a1a1a",borderRadius:12,padding:"18px 20px"}}>
-        <div style={{color:"#ff9999",fontWeight:700,fontSize:14,marginBottom:8}}>⚠ Confirm Deduction</div>
-        <div style={{color:"#aa7777",fontSize:13,marginBottom:16,lineHeight:1.6}}>
-          You are about to deduct <strong style={{color:"#f87171"}}>{pts.toLocaleString()} pts</strong> from <strong style={{color:"#f87171"}}>{member.name}</strong>. This cannot be undone.
-        </div>
-        <div style={{display:"flex",gap:10}}>
-          <button className="btn-d" onClick={doDeduct} style={{flex:1,fontWeight:800}}>✓ Confirm Deduct</button>
-          <button className="btn-g" onClick={()=>setConfirm(false)} style={{flex:1}}>Cancel</button>
-        </div>
-      </div>}
-    </div>
-  </div>;
-}
-
-
-// ─── WELCOME CONFIG ──────────────────────────────────────────────────────────
-function WelcomeConfig({appConfig,setAppConfig,showToast}){
-  const [enabled,setEnabled] = useState(appConfig.welcomeEnabled!==false);
-  const [pts,setPts]         = useState(String(appConfig.welcomePts||100));
-  const [saving,setSaving]   = useState(false);
-  const [dirty,setDirty]     = useState(false);
-
-  const save=async()=>{
-    const newPts=parseInt(pts)||0;
-    if(newPts<0){showToast("Points cannot be negative","error");return;}
-    setSaving(true);
-    try{
-      const next={welcomeEnabled:enabled,welcomePts:newPts};
-      await window.storage.set(KEYS.config,JSON.stringify(next),true);
-      setAppConfig(next);
-      setDirty(false);
-      showToast("Welcome points setting saved!");
-    }catch(e){showToast("Failed to save","error");}
-    setSaving(false);
-  };
-
-  return(
-    <div className="si card" style={{padding:"28px 30px",maxWidth:480,display:"flex",flexDirection:"column",gap:24}}>
-      <div>
-        <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Welcome Points</div>
-        <div style={{fontSize:13,color:"#445566"}}>Configure points automatically awarded when a new member enrolls.</div>
-      </div>
-
-      {/* Toggle */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px",background:"#0a0f1a",borderRadius:14,border:`1px solid ${enabled?"#1a5a2a":"#1e2535"}`}}>
-        <div>
-          <div style={{fontWeight:600,color:"#ccd",fontSize:14}}>Enable Welcome Bonus</div>
-          <div style={{fontSize:12,color:"#445566",marginTop:3}}>{enabled?"New members receive points on enrollment":"No points awarded on enrollment"}</div>
-        </div>
-        <button onClick={()=>{setEnabled(e=>!e);setDirty(true);}}
-          style={{width:52,height:28,borderRadius:99,border:"none",cursor:"pointer",transition:"all .25s",
-            background:enabled?"linear-gradient(135deg,#f59e0b,#f97316)":"#1e2535",
-            position:"relative",flexShrink:0}}>
-          <div style={{position:"absolute",top:3,left:enabled?26:3,width:22,height:22,borderRadius:"50%",
-            background:"#fff",transition:"left .25s",boxShadow:"0 1px 4px #00000044"}}/>
-        </button>
-      </div>
-
-      {/* Points amount */}
-      {enabled&&<div>
-        <label className="lbl">Welcome Points Amount</label>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginTop:4}}>
-          <input className="inp" type="number" min="0" max="99999" value={pts}
-            onChange={e=>{setPts(e.target.value);setDirty(true);}}
-            style={{maxWidth:160,fontSize:22,fontWeight:700,textAlign:"center",padding:"12px"}}/>
-          <div style={{fontSize:13,color:"#5566aa"}}>points awarded on enrollment</div>
-        </div>
-        <div style={{marginTop:10,background:"#0a1a0d",border:"1px solid #1a3a1a",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#4a8a5a",lineHeight:1.6}}>
-          💡 New member gets <strong style={{color:"#4ade80"}}>{parseInt(pts)||0} pts</strong> and starts at{" "}
-          <strong style={{color:"#4ade80"}}>{parseInt(pts)||0} pts</strong> balance on the Member Portal.
-        </div>
-      </div>}
-
-      {!enabled&&<div style={{background:"#1a0d0d",border:"1px solid #3a1a1a",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#aa7777",lineHeight:1.6}}>
-        ⚠️ Members will enroll with <strong style={{color:"#ff9999"}}>0 points</strong> and no welcome transaction.
-      </div>}
-
-      <button className="btn" onClick={save} disabled={saving||!dirty}
-        style={{alignSelf:"flex-start",padding:"11px 28px",opacity:saving||!dirty?0.5:1}}>
-        {saving?"Saving…":"💾 Save Settings"}
-      </button>
-
-      <div style={{borderTop:"1px solid #1a2030",paddingTop:16,fontSize:12,color:"#2a3a55",lineHeight:1.8}}>
-        <div style={{fontWeight:600,color:"#3a4a66",marginBottom:6}}>How it works:</div>
-        <div>• When <strong style={{color:"#4466aa"}}>enabled</strong> — each new enrolled member automatically receives the configured points and a "Welcome Bonus" transaction entry.</div>
-        <div style={{marginTop:4}}>• When <strong style={{color:"#4466aa"}}>disabled</strong> — members enroll with 0 points and no welcome transaction.</div>
-        <div style={{marginTop:4}}>• Changes apply to <strong style={{color:"#4466aa"}}>new enrollments only</strong> — existing members are not affected.</div>
-      </div>
-    </div>
-  );
-}
-
-function Config({ctx}){
-  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig}=ctx;
-  const [tab,setTab]=useState("tiers");
-  const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
-  const [pwErr,setPwErr]=useState("");
-  const [pwShow,setPwShow]=useState({current:false,next:false,confirm:false});
-  const [pwSaving,setPwSaving]=useState(false);
-  const upT=(id,f,v)=>setTiers(p=>p.map(t=>t.id===id?{...t,[f]:f==="minPoints"||f==="multiplier"?Number(v):v}:t));
-  const upR=(lv,f,v)=>setRefLevels(p=>p.map(r=>r.level===lv?{...r,[f]:f==="overridePercent"?Number(v):v}:r));
-
-  const changePw=async()=>{
-    const {adminPw:storedPw,setAdminPw}=ctx;
-    const current=storedPw || import.meta.env.VITE_ADMIN_PASSWORD || "admin1234";
-    if(pwForm.current!==current){setPwErr("Current password is incorrect.");return;}
-    if(pwForm.next.length<4){setPwErr("New password must be at least 4 characters.");return;}
-    if(pwForm.next!==pwForm.confirm){setPwErr("Passwords do not match.");return;}
-    setPwSaving(true);
-    try{
-      await window.storage.set(KEYS.adminPw, pwForm.next, true);
-      setAdminPw(pwForm.next);
-      setPwForm({current:"",next:"",confirm:""});setPwErr("");
-      showToast("Password changed successfully!");
-    }catch(e){setPwErr("Failed to save — check Firebase connection.");}
-    setPwSaving(false);
-  };
-
-  return <div className="fi">
-    <div style={{marginBottom:24}}>
-      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Configuration</h1>
-      <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
-    </div>
-    <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-      {["tiers","referral","welcome","password"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":"🔑 Admin Password"}</button>)}
-    </div>
-    {tab==="tiers"&&<div className="si" style={{display:"flex",flexDirection:"column",gap:14}}>
-      {tiers.map(t=><div key={t.id} className="card" style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto",gap:14,alignItems:"end"}}>
-        <div><label className="lbl">Name</label><input className="inp" value={t.name} onChange={e=>upT(t.id,"name",e.target.value)}/></div>
-        <div><label className="lbl">Min Pts</label><input className="inp" type="number" value={t.minPoints} onChange={e=>upT(t.id,"minPoints",e.target.value)}/></div>
-        <div><label className="lbl">Multiplier</label><input className="inp" type="number" step=".05" value={t.multiplier} onChange={e=>upT(t.id,"multiplier",e.target.value)}/></div>
-        <div><label className="lbl">Color</label><input className="inp" type="color" value={t.color} onChange={e=>upT(t.id,"color",e.target.value)} style={{height:44,padding:4}}/></div>
-        <div><label className="lbl">Icon</label><input className="inp" value={t.icon} onChange={e=>upT(t.id,"icon",e.target.value)} maxLength={2}/></div>
-        <button className="btn-d" onClick={()=>tiers.length>1&&setTiers(p=>p.filter(x=>x.id!==t.id))}>✕</button>
-      </div>)}
-      <div style={{display:"flex",gap:12}}>
-        <button className="btn-g" onClick={()=>setTiers(p=>[...p,{id:genId(),name:"New Tier",minPoints:10000,color:"#888",bg:"#111",icon:"⭐",multiplier:2.5}])}>⊕ Add Tier</button>
-        <button className="btn" onClick={()=>showToast("Tiers saved & synced to member portal!")}>Save Tiers</button>
-      </div>
-    </div>}
-    {tab==="referral"&&<div className="si" style={{display:"flex",flexDirection:"column",gap:14}}>
-      {refLevels.map(r=><div key={r.level} className="card" style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"40px 2fr 1fr 1fr auto",gap:14,alignItems:"end"}}>
-        <div style={{width:36,height:36,borderRadius:"50%",background:`${r.color}22`,border:`1px solid ${r.color}66`,display:"flex",alignItems:"center",justifyContent:"center",color:r.color,fontWeight:800,fontSize:14,marginBottom:4}}>L{r.level}</div>
-        <div><label className="lbl">Label</label><input className="inp" value={r.label} onChange={e=>upR(r.level,"label",e.target.value)}/></div>
-        <div><label className="lbl">Override %</label><input className="inp" type="number" min="0" max="100" value={r.overridePercent} onChange={e=>upR(r.level,"overridePercent",e.target.value)}/></div>
-        <div><label className="lbl">Color</label><input className="inp" type="color" value={r.color} onChange={e=>upR(r.level,"color",e.target.value)} style={{height:44,padding:4}}/></div>
-        <button className="btn-d" onClick={()=>refLevels.length>1&&setRefLevels(p=>p.filter(x=>x.level!==r.level).map((x,i)=>({...x,level:i+1})))}>✕</button>
-      </div>)}
-      <div style={{background:"#0d1a2a",border:"1px solid #1a3050",borderRadius:12,padding:"14px 18px",fontSize:13,color:"#5577aa"}}>
-        <strong style={{color:"#7799cc"}}>Live:</strong> On 1,000 pts earned → L1 gets {Math.round(1000*(refLevels[0]?.overridePercent||0)/100)} pts, L2 gets {Math.round(1000*(refLevels[1]?.overridePercent||0)/100)} pts
-      </div>
-      <div style={{display:"flex",gap:12}}>
-        <button className="btn-g" onClick={()=>setRefLevels(p=>[...p,{level:p.length+1,label:`Level ${p.length+1}`,overridePercent:1,color:"#888"}])}>⊕ Add Level</button>
-        <button className="btn" onClick={()=>showToast("Referral config saved & synced!")}>Save Config</button>
-      </div>
-    </div>}
-    {tab==="welcome"&&<WelcomeConfig appConfig={appConfig} setAppConfig={setAppConfig} showToast={showToast}/>}
-    {tab==="password"&&<div className="si card" style={{padding:"28px 30px",maxWidth:460,display:"flex",flexDirection:"column",gap:20}}>
-      <div>
-        <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Change Admin Password</div>
-        <div style={{fontSize:13,color:"#445566"}}>Password is stored in your browser. Default is <span style={{color:"#f59e0b",fontWeight:600}}>admin1234</span>.</div>
-      </div>
-      {[
-        {key:"current", label:"Current Password"},
-        {key:"next",    label:"New Password"},
-        {key:"confirm", label:"Confirm New Password"},
-      ].map(({key,label})=>(
-        <div key={key}>
-          <label className="lbl">{label}</label>
-          <div style={{position:"relative"}}>
-            <input type={pwShow[key]?"text":"password"} className="inp" placeholder="••••••••" value={pwForm[key]}
-              onChange={e=>{setPwForm(f=>({...f,[key]:e.target.value}));setPwErr("");}}
-              onKeyDown={e=>e.key==="Enter"&&changePw()}
-              style={{paddingRight:44}}/>
-            <button onClick={()=>setPwShow(s=>({...s,[key]:!s[key]}))} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#445566",cursor:"pointer",fontSize:16,padding:2}}>{pwShow[key]?"🙈":"👁"}</button>
-          </div>
-        </div>
-      ))}
-      {pwErr&&<div style={{color:"#f87171",fontSize:13,background:"#2a0d0d",border:"1px solid #5a1a1a",borderRadius:8,padding:"10px 14px"}}>{pwErr}</div>}
-      <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px",opacity:pwSaving?0.6:1}} disabled={pwSaving}>{pwSaving?"Saving…":"🔑 Change Password"}</button>
-    </div>}
-  </div>;
-}
-
-// ─── WHATSAPP BLAST ───────────────────────────────────────────────────────────
-const DEFAULT_WA_TEMPLATES = [
-  { id:"promo",    label:"Promotion",       icon:"🎉", text:"Hi {name}! 🎉 We have an exclusive promotion just for you. Visit us today and enjoy special rewards on your next purchase. Your current balance is {points} pts ({tier} tier). Don't miss out!\n\n— LOYALCORE Team" },
-  { id:"birthday", label:"Birthday Wish",   icon:"🎂", text:"Hi {name}! 🎂 Wishing you a wonderful birthday this {birthday}!\n\nAs a valued {tier} member, we have a special birthday treat waiting for you. Visit us this month to claim your birthday reward!\n\n🎁 Your current balance: {points} pts\n⭐ Tier: {tier} ({multiplier}x multiplier)\n\nHappy Birthday! 🥳\n\n— LOYALCORE Team" },
-  { id:"points",   label:"Points Update",   icon:"✦",  text:"Hi {name}! Your LOYALCORE points balance has been updated.\n\n✦ Current Balance: {points} pts\n✦ Tier: {tier}\n✦ Multiplier: {multiplier}x\n\nKeep earning and unlock more rewards!\n\n— LOYALCORE Team" },
-  { id:"redeem",   label:"Redeem Reminder", icon:"🎁", text:"Hi {name}! 🎁 Reminder: You have {points} pts ready to redeem on exciting rewards. Log in to your LOYALCORE portal to see what's available for you.\n\n— LOYALCORE Team" },
-  { id:"tier",     label:"Tier Achievement", icon:"🏆", text:"Hi {name}! Congratulations! 🏆 You've reached {tier} tier status with {points} pts. Enjoy your {multiplier}x points multiplier on every purchase going forward!\n\n— LOYALCORE Team" },
-];
-
-function WhatsAppBlast({ctx}){
-  const {members,tiers,waTemplates,setWaTemplates,showToast}=ctx;
-  const templates=(waTemplates||DEFAULT_WA_TEMPLATES);
-  const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const currentMonth=new Date().getMonth(); // 0-indexed
-
-  const [tab,setTab]=useState("blast"); // blast | manage
-  const [step,setStep]=useState("compose");
-  const [templateId,setTemplateId]=useState(templates[0]?.id||"");
-  const [customText,setCustomText]=useState("");
-  const [useCustom,setUseCustom]=useState(false);
-  const [recipients,setRecipients]=useState("all"); // all | tier | birthday | select
-  const [selTier,setSelTier]=useState("");
-  const [selBdayMonth,setSelBdayMonth]=useState(String(currentMonth));
-  const [selIds,setSelIds]=useState([]);
-  const [sentIdx,setSentIdx]=useState(-1);
-  const [sendLog,setSendLog]=useState([]);
-
-  // Template editor state
+  // ── Manage rewards ──
   const [editing,setEditing]=useState(null);
   const [editErr,setEditErr]=useState("");
   const [saving,setSaving]=useState(false);
 
-  const saveTemplates=async(next)=>{
+  const saveRewards=async(next)=>{
     setSaving(true);
     try{
-      await window.storage.set(KEYS.waTemplates,JSON.stringify(next),true);
-      setWaTemplates(next);
-      showToast("Templates saved!");
+      await window.storage.set(KEYS.rewards,JSON.stringify(next),true);
+      setRewards(next);
+      showToast("Rewards saved!");
     }catch(e){showToast("Failed to save","error");}
     setSaving(false);
   };
 
-  const startEdit=(t)=>setEditing({...t});
-  const startNew=()=>setEditing({id:genId(),label:"",icon:"📢",text:"",isNew:true});
+  const startNew=()=>setEditing({id:genId(),name:"",pts:"",icon:"🎁",category:"",active:true,isNew:true});
+  const startEdit=(r)=>setEditing({...r,pts:String(r.pts)});
+  const toggleActive=(id)=>{
+    const next=rewards.map(r=>r.id===id?{...r,active:!r.active}:r);
+    saveRewards(next);
+  };
+  const deleteReward=async(id)=>{
+    if(rewards.length<=1){showToast("Must keep at least one reward","error");return;}
+    saveRewards(rewards.filter(r=>r.id!==id));
+  };
   const saveEdit=async()=>{
-    if(!editing.label.trim()){setEditErr("Name is required.");return;}
-    if(!editing.text.trim()){setEditErr("Message text is required.");return;}
+    if(!editing.name.trim()){setEditErr("Name is required.");return;}
+    if(!parseInt(editing.pts)||parseInt(editing.pts)<=0){setEditErr("Points must be greater than 0.");return;}
     setEditErr("");
-    const next=editing.isNew
-      ?[...templates,{id:editing.id,label:editing.label,icon:editing.icon,text:editing.text}]
-      :templates.map(t=>t.id===editing.id?{id:t.id,label:editing.label,icon:editing.icon,text:editing.text}:t);
-    await saveTemplates(next);setEditing(null);
-  };
-  const deleteTemplate=async(id)=>{
-    if(templates.length<=1){showToast("Must keep at least one template","error");return;}
-    const next=templates.filter(t=>t.id!==id);
-    await saveTemplates(next);
-    if(templateId===id)setTemplateId(next[0]?.id||"");
+    const item={id:editing.id,name:editing.name.trim(),pts:parseInt(editing.pts),icon:editing.icon||"🎁",category:editing.category.trim(),active:editing.active!==false};
+    const next=editing.isNew?[...rewards,item]:rewards.map(r=>r.id===editing.id?item:r);
+    await saveRewards(next);
+    setEditing(null);
   };
 
-  const template=templates.find(t=>t.id===templateId)||templates[0];
+  // ── Redeem flow ──
+  const [sel,setSel]=useState("");
+  const [selReward,setSelReward]=useState(null);
+  const [confirm,setConfirm]=useState(false);
+  const [catFilter,setCatFilter]=useState("All");
+  const member=members.find(m=>m.id===sel);
+  const tier=member?getTier(member.points,tiers):null;
 
-  const getBirthdayList=(monthIdx)=>members.filter(m=>{
-    if(!m.birthday)return false;
-    return new Date(m.birthday+"T00:00:00").getMonth()===parseInt(monthIdx);
-  });
-
-  const getRecipients=()=>{
-    if(recipients==="all") return members;
-    if(recipients==="tier") return members.filter(m=>getTier(m.points,tiers).id===selTier);
-    if(recipients==="birthday") return getBirthdayList(selBdayMonth);
-    return members.filter(m=>selIds.includes(m.id));
+  const reset=()=>{setSel("");setSelReward(null);setConfirm(false);};
+  const doRedeem=()=>{
+    if(!member||!selReward)return;
+    setMembers(prev=>prev.map(m=>m.id===member.id
+      ?{...m,points:m.points-selReward.pts,
+          transactions:[{id:genId(),pts:-selReward.pts,icon:selReward.icon,label:`${selReward.name} Redeemed`,date:today(),type:"redeem"},...m.transactions]}
+      :m
+    ));
+    showToast(`${selReward.name} redeemed for ${member.name}! −${selReward.pts.toLocaleString()} pts`);
+    reset();
   };
 
-  const buildMsg=(member,rawText)=>{
-    const tier=getTier(member.points,tiers);
-    const bdayMonth=member.birthday?MONTHS[new Date(member.birthday+"T00:00:00").getMonth()]:"";
-    return (rawText||"")
-      .replace(/{name}/g,     member.name.split(" ")[0])
-      .replace(/{fullname}/g, member.name)
-      .replace(/{points}/g,   member.points.toLocaleString())
-      .replace(/{tier}/g,     tier.name)
-      .replace(/{multiplier}/g, tier.multiplier)
-      .replace(/{birthday}/g, bdayMonth);
-  };
+  const activeRewards=rewards.filter(r=>r.active!==false);
+  const cats=["All",...new Set(activeRewards.map(r=>r.category).filter(Boolean))];
+  const filtered=catFilter==="All"?activeRewards:activeRewards.filter(r=>r.category===catFilter);
 
-  const waLink=(phone,msg)=>{
-    const num=phone.replace(/\D/g,"");
-    const intl=num.startsWith("0")?"60"+num.slice(1):num;
-    return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
-  };
-
-  const msgText=useCustom?customText:template?.text||"";
-  const list=getRecipients();
-  const bdayList=getBirthdayList(selBdayMonth);
-
-  const sendAll=()=>{setSentIdx(0);setSendLog([]);setStep("sending");};
-  const reset=()=>{setSentIdx(-1);setSendLog([]);setStep("compose");};
-  const toggleId=(id)=>setSelIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
-
-  useEffect(()=>{
-    if(step!=="sending"||sentIdx<0||sentIdx>=list.length)return;
-    const member=list[sentIdx];
-    const msg=buildMsg(member,msgText);
-    window.open(waLink(member.phone,msg),"_blank");
-    setSendLog(l=>[...l,{name:member.name,phone:member.phone}]);
-    const timer=setTimeout(()=>{
-      if(sentIdx+1<list.length)setSentIdx(i=>i+1);
-      else setStep("done");
-    },1500);
-    return()=>clearTimeout(timer);
-  },[sentIdx,step]);
-
-  // ── DONE ──
-  if(step==="done")return(
-    <div className="fi" style={{maxWidth:560}}>
-      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0",marginBottom:24}}>WhatsApp Blast</h1>
-      <div className="card" style={{padding:"32px",textAlign:"center"}}>
-        <div style={{fontSize:56,marginBottom:16}}>✅</div>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#e8eaf0",marginBottom:8}}>Blast Complete</div>
-        <div style={{color:"#5566aa",fontSize:14,marginBottom:24}}>{sendLog.length} messages opened via WhatsApp</div>
-        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:260,overflowY:"auto",marginBottom:24,textAlign:"left"}}>
-          {sendLog.map((l,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"9px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
-              <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{l.name}</span>
-              <span style={{color:"#4ade80",fontSize:12}}>✓ {l.phone}</span>
-            </div>
-          ))}
-        </div>
-        <button className="btn" onClick={reset}>Send Another Blast</button>
-      </div>
-    </div>
-  );
-
-  // ── SENDING ──
-  if(step==="sending")return(
-    <div className="fi" style={{maxWidth:560}}>
-      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0",marginBottom:24}}>WhatsApp Blast</h1>
-      <div className="card" style={{padding:"32px",textAlign:"center"}}>
-        <div style={{fontSize:48,marginBottom:16,animation:"spin 1.5s linear infinite",display:"inline-block"}}>💬</div>
-        <div style={{color:"#e8eaf0",fontSize:16,fontWeight:600,marginBottom:4}}>Sending {sentIdx+1} of {list.length}</div>
-        <div style={{color:"#5566aa",fontSize:13,marginBottom:20}}>{list[sentIdx]?.name} · {list[sentIdx]?.phone}</div>
-        <div style={{background:"#0a0f1a",borderRadius:10,height:6,overflow:"hidden",marginBottom:20}}>
-          <div style={{height:"100%",background:"linear-gradient(90deg,#25d366,#128c7e)",borderRadius:10,width:`${((sentIdx+1)/list.length)*100}%`,transition:"width .4s ease"}}/>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto",textAlign:"left",marginBottom:14}}>
-          {sendLog.map((l,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"#0d2a1a",borderRadius:8,border:"1px solid #1a4a2a"}}>
-              <span style={{color:"#ccd",fontSize:12}}>{l.name}</span>
-              <span style={{color:"#4ade80",fontSize:11}}>✓ Opened</span>
-            </div>
-          ))}
-        </div>
-        <div style={{fontSize:11,color:"#2a3a4a"}}>Allow pop-ups if prompted by your browser.</div>
-      </div>
-    </div>
-  );
-
-  // ── MAIN ──
   return(
-    <div className="fi" style={{maxWidth:720}}>
+    <div className="fi" style={{maxWidth:700}}>
       <div style={{marginBottom:24}}>
-        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>WhatsApp Blast</h1>
-        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Send personalised messages to members via WhatsApp</p>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Redeem Rewards</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Process member reward redemptions or manage the rewards catalogue</p>
       </div>
 
+      {/* Tab switcher */}
       <div style={{display:"flex",gap:8,marginBottom:22}}>
-        {[{id:"blast",label:"💬 Send Blast"},{id:"manage",label:"✏️ Manage Templates"}].map(t=>(
+        {[{id:"redeem",label:"🎁 Redeem for Member"},{id:"manage",label:"⚙️ Manage Catalogue"}].map(t=>(
           <button key={t.id} onClick={()=>{setTab(t.id);setEditing(null);}}
             style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
               background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
@@ -1107,215 +745,189 @@ function WhatsAppBlast({ctx}){
         ))}
       </div>
 
-      {/* ── MANAGE TEMPLATES ── */}
-      {tab==="manage"&&<div>
-        {editing&&<div className="card si" style={{padding:"24px 26px",marginBottom:20}}>
-          <div style={{fontWeight:700,color:"#e8eaf0",fontSize:15,marginBottom:18}}>{editing.isNew?"New Template":"Edit Template"}</div>
-          <div style={{display:"grid",gridTemplateColumns:"60px 1fr",gap:14,marginBottom:14}}>
+      {/* ── MANAGE CATALOGUE ── */}
+      {tab==="manage"&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+        {editing&&<div className="card si" style={{padding:"24px 26px",marginBottom:4}}>
+          <div style={{fontWeight:700,color:"#e8eaf0",fontSize:15,marginBottom:18}}>{editing.isNew?"New Reward":"Edit Reward"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"56px 1fr 120px",gap:14,marginBottom:14}}>
             <div>
               <label className="lbl">Icon</label>
-              <input className="inp" value={editing.icon} maxLength={2} onChange={e=>setEditing(v=>({...v,icon:e.target.value}))} style={{textAlign:"center",fontSize:20,padding:"10px 4px"}}/>
+              <input className="inp" value={editing.icon} maxLength={2} onChange={e=>setEditing(v=>({...v,icon:e.target.value}))} style={{textAlign:"center",fontSize:22,padding:"10px 4px"}}/>
             </div>
             <div>
-              <label className="lbl">Template Name</label>
-              <input className="inp" placeholder="e.g. Birthday Greeting" value={editing.label} onChange={e=>setEditing(v=>({...v,label:e.target.value}))}/>
+              <label className="lbl">Reward Name *</label>
+              <input className="inp" placeholder="e.g. Free Dessert" value={editing.name} onChange={e=>setEditing(v=>({...v,name:e.target.value}))}/>
+            </div>
+            <div>
+              <label className="lbl">Points Cost *</label>
+              <input className="inp" type="number" min="1" placeholder="200" value={editing.pts} onChange={e=>setEditing(v=>({...v,pts:e.target.value}))}/>
             </div>
           </div>
-          <div style={{marginBottom:14}}>
-            <label className="lbl">Message Text</label>
-            <textarea value={editing.text} onChange={e=>setEditing(v=>({...v,text:e.target.value}))}
-              placeholder={"Hi {name}! Wishing you a wonderful birthday this {birthday}! Enjoy {points} pts."}
-              style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
-                color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-                resize:"vertical",outline:"none",lineHeight:1.7,marginTop:4}}></textarea>
-            <div style={{marginTop:6,fontSize:11,color:"#2a3a55"}}>
-              Placeholders: <span style={{color:"#445577"}}>{"{name}"}</span> · <span style={{color:"#445577"}}>{"{fullname}"}</span> · <span style={{color:"#445577"}}>{"{points}"}</span> · <span style={{color:"#445577"}}>{"{tier}"}</span> · <span style={{color:"#445577"}}>{"{multiplier}"}</span> · <span style={{color:"#f59e0b"}}>{"{birthday}"}</span> (birth month)
+          <div style={{display:"grid",gridTemplateColumns:"1fr 120px",gap:14,marginBottom:14}}>
+            <div>
+              <label className="lbl">Category <span style={{color:"#2a3a55",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label>
+              <input className="inp" placeholder="e.g. Dining, Stay, Wellness" value={editing.category} onChange={e=>setEditing(v=>({...v,category:e.target.value}))}/>
+            </div>
+            <div>
+              <label className="lbl">Status</label>
+              <select className="inp" value={editing.active?"active":"inactive"} onChange={e=>setEditing(v=>({...v,active:e.target.value==="active"}))}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
             </div>
           </div>
-          {editing.text&&<div style={{background:"#0a1a10",border:"1px solid #1a3a1a",borderRadius:10,padding:"14px",marginBottom:14}}>
-            <div style={{fontSize:11,color:"#4a7a4a",fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:8}}>Preview</div>
-            <div style={{fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap"}}>
-              {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"1990-03-15"},editing.text)}
-            </div>
-          </div>}
           {editErr&&<div style={{color:"#f87171",fontSize:13,marginBottom:12,background:"#2a0d0d",borderRadius:8,padding:"8px 12px"}}>{editErr}</div>}
           <div style={{display:"flex",gap:10}}>
-            <button className="btn" onClick={saveEdit} style={{opacity:saving?0.6:1}} disabled={saving}>{saving?"Saving…":"💾 Save Template"}</button>
+            <button className="btn" onClick={saveEdit} disabled={saving} style={{opacity:saving?0.6:1}}>{saving?"Saving…":"💾 Save Reward"}</button>
             <button className="btn-g" onClick={()=>{setEditing(null);setEditErr("");}}>Cancel</button>
           </div>
         </div>}
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {templates.map(t=>(
-            <div key={t.id} className="card" style={{padding:"18px 20px",display:"flex",gap:14,alignItems:"flex-start"}}>
-              <div style={{fontSize:28,flexShrink:0,marginTop:2}}>{t.icon}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:700,color:"#e8eaf0",fontSize:14,marginBottom:4}}>{t.label}</div>
-                <div style={{fontSize:12,color:"#445566",lineHeight:1.6,whiteSpace:"pre-wrap",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical"}}>{t.text}</div>
+
+        {rewards.map(r=>(
+          <div key={r.id} className="card" style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:14,opacity:r.active===false?0.5:1}}>
+            <div style={{fontSize:28,flexShrink:0}}>{r.icon}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                <span style={{fontWeight:700,color:"#ccd",fontSize:14}}>{r.name}</span>
+                {r.category&&<span style={{fontSize:10,color:"#5566aa",background:"#0e1420",padding:"2px 8px",borderRadius:99,border:"1px solid #1e2535"}}>{r.category}</span>}
+                {r.active===false&&<span style={{fontSize:10,color:"#886644",background:"#1a1008",padding:"2px 8px",borderRadius:99,border:"1px solid #2a2010"}}>Inactive</span>}
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
-                <button className="btn-g" onClick={()=>startEdit(t)} style={{fontSize:12,padding:"7px 14px"}}>✏️ Edit</button>
-                {templates.length>1&&<button className="btn-d" onClick={()=>deleteTemplate(t.id)} style={{fontSize:12,padding:"7px 14px"}}>✕</button>}
-              </div>
+              <div style={{fontSize:13,color:"#f59e0b",fontWeight:700}}>{r.pts.toLocaleString()} pts</div>
             </div>
-          ))}
-          <button className="btn-g" onClick={startNew} style={{alignSelf:"flex-start",padding:"10px 20px"}}>⊕ Add New Template</button>
-        </div>
+            <div style={{display:"flex",gap:8,flexShrink:0}}>
+              <button className="btn-g" onClick={()=>toggleActive(r.id)} style={{fontSize:11,padding:"6px 12px"}}>
+                {r.active===false?"Enable":"Disable"}
+              </button>
+              <button className="btn-g" onClick={()=>startEdit(r)} style={{fontSize:11,padding:"6px 12px"}}>✏️ Edit</button>
+              {rewards.length>1&&<button className="btn-d" onClick={()=>deleteReward(r.id)} style={{fontSize:11,padding:"6px 12px"}}>✕</button>}
+            </div>
+          </div>
+        ))}
+
+        <button className="btn-g" onClick={startNew} style={{alignSelf:"flex-start",padding:"10px 20px"}}>⊕ Add New Reward</button>
       </div>}
 
-      {/* ── BLAST TAB ── */}
-      {tab==="blast"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      {/* ── REDEEM FOR MEMBER ── */}
+      {tab==="redeem"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
 
-        {/* LEFT — compose */}
+        {/* LEFT — member + reward selection */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div className="card" style={{padding:"22px 24px"}}>
-            <label className="lbl">Message Template</label>
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
-              {templates.map(t=>(
-                <button key={t.id} onClick={()=>{setTemplateId(t.id);setUseCustom(false);}}
-                  style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
-                    background:templateId===t.id&&!useCustom?"#0d2a1a":"#0a0f1a",
-                    border:`1px solid ${templateId===t.id&&!useCustom?"#1a5a2a":"#1e2535"}`,
-                    color:templateId===t.id&&!useCustom?"#4ade80":"#6677aa",
-                    fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
-                  {t.icon} {t.label}
-                </button>
-              ))}
-              <button onClick={()=>setUseCustom(true)}
-                style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
-                  background:useCustom?"#1a1a0d":"#0a0f1a",border:`1px solid ${useCustom?"#4a4a1a":"#1e2535"}`,
-                  color:useCustom?"#f5c842":"#6677aa",fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
-                ✏️ One-time Custom Message
-              </button>
-            </div>
-          </div>
-          <div className="card" style={{padding:"22px 24px"}}>
-            <label className="lbl">{useCustom?"Your Message":"Message Preview"}</label>
-            {useCustom
-              ?<textarea value={customText} onChange={e=>setCustomText(e.target.value)}
-                  placeholder={"Hi {name}! Use {points}, {tier}, {birthday} as placeholders."}
-                  style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,
-                    color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",
-                    resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}></textarea>
-              :<div style={{background:"#0a0f1a",borderRadius:10,padding:"14px",border:"1px solid #1e2535",
-                  fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap",marginTop:4,minHeight:100}}>
-                {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"1990-03-15"},msgText)}
+            <label className="lbl">Select Member</label>
+            <select className="inp" value={sel} onChange={e=>{setSel(e.target.value);setSelReward(null);setConfirm(false);}}>
+              <option value="">— Choose member —</option>
+              {members.map(m=>{const t=getTier(m.points,tiers);return<option key={m.id} value={m.id}>{m.name} · {t.name} · {m.points.toLocaleString()} pts</option>;})}
+            </select>
+            {member&&<div style={{marginTop:12,background:"#0a1020",borderRadius:10,padding:"12px 16px",border:"1px solid #1a2535",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{member.name}</div>
+                <div style={{color:"#6677aa",fontSize:12,marginTop:2}}>{member.phone}</div>
               </div>
-            }
-            <div style={{marginTop:8,fontSize:11,color:"#2a3a55"}}>
-              Placeholders: <span style={{color:"#445566"}}>{"{name}"}</span> · <span style={{color:"#445566"}}>{"{points}"}</span> · <span style={{color:"#445566"}}>{"{tier}"}</span> · <span style={{color:"#f59e0b"}}>{"{birthday}"}</span>
-            </div>
+              <div style={{textAlign:"right"}}>
+                <TierBadge tier={tier}/>
+                <div style={{fontSize:14,color:"#f59e0b",fontWeight:800,marginTop:4}}>{member.points.toLocaleString()} pts</div>
+              </div>
+            </div>}
           </div>
+
+          {member&&<div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">Select Reward</label>
+            {/* Category filter */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",margin:"8px 0 14px"}}>
+              {cats.map(c=><button key={c} onClick={()=>setCatFilter(c)}
+                style={{padding:"5px 12px",borderRadius:99,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",
+                  background:catFilter===c?"linear-gradient(135deg,#f59e0b,#f97316)":"#0a0f1a",
+                  color:catFilter===c?"#000":"#6677aa",transition:"all .15s"}}>
+                {c}
+              </button>)}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:300,overflowY:"auto"}}>
+              {filtered.length===0&&<div style={{color:"#2a3a55",fontSize:13,textAlign:"center",padding:"20px 0"}}>No active rewards in this category.</div>}
+              {filtered.map(r=>{
+                const canAfford=member.points>=r.pts;
+                const isSel=selReward?.id===r.id;
+                return(
+                  <button key={r.id} onClick={()=>{if(canAfford){setSelReward(isSel?null:r);setConfirm(false);}}}
+                    style={{padding:"12px 14px",borderRadius:10,textAlign:"left",border:`1px solid ${isSel?"#f59e0b44":canAfford?"#1e2535":"#1a1a1a"}`,
+                      background:isSel?"#1a1800":canAfford?"#0a0f1a":"#08080a",
+                      cursor:canAfford?"pointer":"not-allowed",opacity:canAfford?1:0.4,transition:"all .15s"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:22}}>{r.icon}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:600,color:isSel?"#f5c842":"#ccd",fontSize:13}}>{r.name}</div>
+                        {r.category&&<div style={{fontSize:10,color:"#445566",marginTop:1}}>{r.category}</div>}
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontWeight:800,color:canAfford?"#f59e0b":"#445566",fontSize:14}}>{r.pts.toLocaleString()}</div>
+                        <div style={{fontSize:9,color:"#445566",letterSpacing:.5}}>PTS</div>
+                      </div>
+                    </div>
+                    {!canAfford&&<div style={{fontSize:10,color:"#5a3a1a",marginTop:4}}>Insufficient balance ({(r.pts-member.points).toLocaleString()} pts short)</div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>}
         </div>
 
-        {/* RIGHT — recipients */}
+        {/* RIGHT — summary + confirm */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div className="card" style={{padding:"22px 24px"}}>
-            <label className="lbl">Recipients</label>
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
-              {[
-                {v:"all",     l:`🌐 All Members (${members.length})`},
-                {v:"birthday",l:`🎂 By Birthday Month`},
-                {v:"tier",    l:`🏅 By Tier`},
-                {v:"select",  l:`☑️ Select Individually`},
-              ].map(o=>(
-                <button key={o.v} onClick={()=>setRecipients(o.v)}
-                  style={{padding:"11px 14px",borderRadius:10,fontSize:13,fontWeight:600,textAlign:"left",
-                    background:recipients===o.v?"#0d1a2a":"#0a0f1a",
-                    border:`1px solid ${recipients===o.v?"#1a3050":"#1e2535"}`,
-                    color:recipients===o.v?"#60a5fa":"#6677aa",
-                    fontFamily:"'DM Sans',sans-serif",transition:"all .15s"}}>
-                  {o.l}
-                </button>
-              ))}
+          {member&&selReward&&<div className="card" style={{padding:"24px 26px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#f59e0b",letterSpacing:.8,textTransform:"uppercase",marginBottom:16}}>Redemption Summary</div>
+            <div style={{textAlign:"center",marginBottom:20,padding:"20px",background:"#0a0f1a",borderRadius:12,border:"1px solid #1e2535"}}>
+              <div style={{fontSize:44,marginBottom:8}}>{selReward.icon}</div>
+              <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#e8eaf0",fontWeight:700}}>{selReward.name}</div>
+              {selReward.category&&<div style={{fontSize:11,color:"#5566aa",marginTop:4}}>{selReward.category}</div>}
             </div>
-
-            {recipients==="birthday"&&<div style={{marginTop:14}}>
-              <label className="lbl">Select Month</label>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginTop:6}}>
-                {MONTHS.map((m,i)=>{
-                  const cnt=getBirthdayList(i).length;
-                  const isThis=i===currentMonth;
-                  const isSel=selBdayMonth===String(i);
-                  return(
-                    <button key={i} onClick={()=>setSelBdayMonth(String(i))}
-                      style={{padding:"8px 4px",borderRadius:8,fontSize:11,fontWeight:600,textAlign:"center",
-                        background:isSel?"#0d1a2a":isThis?"#0a1a10":"#0a0f1a",
-                        border:`1px solid ${isSel?"#1a3050":isThis?"#1a4a2a":"#1e2535"}`,
-                        color:isSel?"#60a5fa":isThis?"#4ade80":cnt>0?"#8899bb":"#2a3a4a",
-                        fontFamily:"'DM Sans',sans-serif",transition:"all .15s",cursor:"pointer"}}>
-                      {m.slice(0,3)}<br/>
-                      <span style={{fontSize:10,opacity:.7}}>{cnt} member{cnt!==1?"s":""}</span>
-                      {isThis&&<div style={{fontSize:9,color:"#4ade80",marginTop:2}}>● now</div>}
-                    </button>
-                  );
-                })}
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"#5566aa",fontSize:13}}>Member</span>
+                <span style={{color:"#ccd",fontWeight:600,fontSize:13}}>{member.name}</span>
               </div>
-              {bdayList.length===0&&<div style={{marginTop:10,fontSize:12,color:"#445566",background:"#0a0f1a",borderRadius:8,padding:"10px 14px"}}>
-                No members with birthdays in {MONTHS[parseInt(selBdayMonth)]}. Add birthdays in member profiles.
-              </div>}
-              {bdayList.length>0&&<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6,maxHeight:160,overflowY:"auto"}}>
-                {bdayList.map(m=>{const t=getTier(m.points,tiers);return(
-                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#0d1a2a",borderRadius:8,border:"1px solid #1a3050"}}>
-                    <span style={{fontSize:16}}>🎂</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
-                      <div style={{fontSize:11,color:"#445566"}}>{m.birthday?new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):""}</div>
-                    </div>
-                    <span style={{fontSize:10,color:t.color,background:`${t.color}18`,padding:"2px 8px",borderRadius:99,fontWeight:700}}>{t.name}</span>
-                  </div>
-                );})}
-              </div>}
-            </div>}
-
-            {recipients==="tier"&&<div style={{marginTop:12}}>
-              <label className="lbl">Select Tier</label>
-              <select className="inp" value={selTier} onChange={e=>setSelTier(e.target.value)}>
-                <option value="">— Choose tier —</option>
-                {tiers.map(t=>{const cnt=members.filter(m=>getTier(m.points,tiers).id===t.id).length;return<option key={t.id} value={t.id}>{t.icon} {t.name} ({cnt})</option>;})}
-              </select>
-            </div>}
-
-            {recipients==="select"&&<div style={{marginTop:12,display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
-              {members.map(m=>{const t=getTier(m.points,tiers);return(
-                <label key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
-                  background:selIds.includes(m.id)?"#0d1a2a":"#0a0f1a",borderRadius:10,
-                  border:`1px solid ${selIds.includes(m.id)?"#1a3050":"#1e2535"}`,cursor:"pointer"}}>
-                  <input type="checkbox" checked={selIds.includes(m.id)} onChange={()=>toggleId(m.id)} style={{accentColor:"#f59e0b",width:16,height:16}}/>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
-                    <div style={{fontSize:11,color:"#445566"}}>{m.phone}{m.birthday?" · 🎂 "+new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):""}</div>
-                  </div>
-                  <span style={{fontSize:10,color:t.color,fontWeight:700,background:`${t.color}18`,padding:"2px 8px",borderRadius:99}}>{t.name}</span>
-                </label>
-              );})}
-            </div>}
-          </div>
-
-          {/* Summary + send */}
-          <div className="card" style={{padding:"22px 24px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-              <span style={{color:"#5566aa",fontSize:13}}>Recipients</span>
-              <span style={{color:"#f59e0b",fontWeight:700,fontSize:15}}>{list.length} member{list.length!==1?"s":""}</span>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"#5566aa",fontSize:13}}>Current Balance</span>
+                <span style={{color:"#f59e0b",fontWeight:700}}>{member.points.toLocaleString()} pts</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"#5566aa",fontSize:13}}>Redemption Cost</span>
+                <span style={{color:"#f87171",fontWeight:700}}>−{selReward.pts.toLocaleString()} pts</span>
+              </div>
+              <div style={{borderTop:"1px solid #1e2535",paddingTop:10,display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"#5566aa",fontSize:13}}>Remaining Balance</span>
+                <span style={{color:"#4ade80",fontWeight:800,fontSize:16}}>{(member.points-selReward.pts).toLocaleString()} pts</span>
+              </div>
             </div>
-            {recipients==="birthday"&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-              <span style={{color:"#5566aa",fontSize:13}}>Birth Month</span>
-              <span style={{color:"#f59e0b",fontSize:13,fontWeight:600}}>🎂 {MONTHS[parseInt(selBdayMonth)]}</span>
-            </div>}
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}>
-              <span style={{color:"#5566aa",fontSize:13}}>Template</span>
-              <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{useCustom?"✏️ Custom":template?.icon+" "+template?.label}</span>
-            </div>
-            <div style={{background:"#0a1a0d",border:"1px solid #1a3a1a",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#4a7a4a",lineHeight:1.6}}>
-              📱 WhatsApp opens for each recipient with message pre-filled. Confirm each send manually.
-            </div>
-            <button className="btn" onClick={sendAll}
-              disabled={list.length===0||!msgText.trim()}
-              style={{width:"100%",background:"linear-gradient(135deg,#25d366,#128c7e)",opacity:list.length===0||!msgText.trim()?0.4:1}}>
-              💬 Send to {list.length} Member{list.length!==1?"s":""}
-            </button>
-          </div>
+            {!confirm
+              ?<button className="btn" onClick={()=>setConfirm(true)} style={{width:"100%",background:"linear-gradient(135deg,#f59e0b,#f97316)"}}>
+                🎁 Confirm Redemption
+              </button>
+              :<div style={{background:"#0d1a0d",border:"1px solid #1a4a1a",borderRadius:12,padding:"16px 18px"}}>
+                <div style={{color:"#4ade80",fontWeight:700,fontSize:14,marginBottom:8}}>✓ Confirm Redemption</div>
+                <div style={{color:"#6a9a6a",fontSize:13,marginBottom:14,lineHeight:1.6}}>
+                  Redeem <strong style={{color:"#86efac"}}>{selReward.name}</strong> for <strong style={{color:"#86efac"}}>{member.name}</strong>?<br/>
+                  <strong style={{color:"#f87171"}}>{selReward.pts.toLocaleString()} pts</strong> will be deducted.
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button className="btn" onClick={doRedeem} style={{flex:1,background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>✓ Yes, Redeem</button>
+                  <button className="btn-g" onClick={()=>setConfirm(false)} style={{flex:1}}>Cancel</button>
+                </div>
+              </div>
+            }
+          </div>}
+
+          {member&&!selReward&&<div className="card" style={{padding:"28px",textAlign:"center"}}>
+            <div style={{fontSize:40,marginBottom:12,opacity:.3}}>🎁</div>
+            <div style={{color:"#2a3a55",fontSize:13}}>Select a reward from the left to proceed</div>
+          </div>}
+
+          {!member&&<div className="card" style={{padding:"28px",textAlign:"center"}}>
+            <div style={{fontSize:40,marginBottom:12,opacity:.3}}>👤</div>
+            <div style={{color:"#2a3a55",fontSize:13}}>Select a member to see available rewards</div>
+          </div>}
         </div>
       </div>}
     </div>
   );
 }
+
+
