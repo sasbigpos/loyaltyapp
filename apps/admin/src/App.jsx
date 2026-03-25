@@ -554,6 +554,138 @@ function AwardPts({ctx}){
   </div>;
 }
 
+
+// ─── TRANSACTION HISTORY ──────────────────────────────────────────────────────
+function TransactionHistory({member,tier}){
+  const [filter,setFilter]=useState("all");   // all | earn | redeem
+  const [search,setSearch]=useState("");
+  const [page,setPage]=useState(1);
+  const PER_PAGE=15;
+
+  const txns=member.transactions||[];
+
+  // Summary stats
+  const totalEarned =txns.filter(t=>t.pts>0).reduce((s,t)=>s+t.pts,0);
+  const totalRedeemed=txns.filter(t=>t.pts<0).reduce((s,t)=>s+Math.abs(t.pts),0);
+  const earnCount   =txns.filter(t=>t.pts>0).length;
+  const redeemCount =txns.filter(t=>t.pts<0).length;
+
+  // Filter + search
+  const filtered=txns.filter(t=>{
+    const matchType=filter==="all"||(filter==="earn"&&t.pts>0)||(filter==="redeem"&&t.pts<0);
+    const matchSearch=!search||t.label?.toLowerCase().includes(search.toLowerCase())||t.date?.toLowerCase().includes(search.toLowerCase());
+    return matchType&&matchSearch;
+  });
+
+  const totalPages=Math.max(1,Math.ceil(filtered.length/PER_PAGE));
+  const paginated=filtered.slice((page-1)*PER_PAGE,page*PER_PAGE);
+
+  // Reset page when filter/search changes
+  const setFilterAndReset=(f)=>{setFilter(f);setPage(1);};
+  const setSearchAndReset=(s)=>{setSearch(s);setPage(1);};
+
+  return(
+    <div className="card" style={{padding:"24px 26px",gridColumn:"1/-1"}}>
+
+      {/* Header + summary */}
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontWeight:700,color:"#ccd",fontSize:15,marginBottom:2}}>Transaction History</div>
+          <div style={{fontSize:12,color:"#445566"}}>{txns.length} total transactions</div>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          {[
+            {label:"Total Earned",  val:"+"+totalEarned.toLocaleString(),  sub:earnCount+" transactions",    color:"#4ade80",bg:"#0d2a1a",border:"#1a4a2a"},
+            {label:"Total Redeemed",val:"−"+totalRedeemed.toLocaleString(),sub:redeemCount+" redemptions",   color:"#f87171",bg:"#2a0d0d",border:"#4a1a1a"},
+            {label:"Net Balance",   val:member.points.toLocaleString(),     sub:"current pts",               color:tier.color,bg:"#0a0f1a",border:"#1e2535"},
+          ].map(s=>(
+            <div key={s.label} style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:12,padding:"10px 16px",textAlign:"right",minWidth:120}}>
+              <div style={{fontSize:16,fontWeight:800,color:s.color}}>{s.val}</div>
+              <div style={{fontSize:10,color:s.color,opacity:.7,letterSpacing:.5,textTransform:"uppercase",marginTop:2}}>{s.sub}</div>
+              <div style={{fontSize:10,color:"#2a3a55",marginTop:1}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Filter + search row */}
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+        <div style={{display:"flex",gap:6}}>
+          {[["all","All"],["earn","Earned"],["redeem","Redeemed"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setFilterAndReset(v)}
+              style={{padding:"7px 16px",borderRadius:99,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
+                background:filter===v?tier.color:"#0e1420",
+                color:filter===v?"#000":"#5566aa",transition:"all .15s"}}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <input className="inp" placeholder="Search transactions…" value={search}
+          onChange={e=>setSearchAndReset(e.target.value)}
+          style={{flex:1,maxWidth:260,padding:"7px 12px",fontSize:13}}/>
+        {filtered.length>0&&<div style={{fontSize:12,color:"#445566",marginLeft:"auto"}}>
+          {filtered.length} result{filtered.length!==1?"s":""}
+        </div>}
+      </div>
+
+      {/* Transaction list */}
+      {paginated.length===0
+        ?<div style={{textAlign:"center",padding:"32px 0",color:"#2a3a55",fontSize:13}}>
+            No transactions found
+          </div>
+        :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {paginated.map((t,i)=>{
+            const isEarn=t.pts>0;
+            return(
+              <div key={t.id||i} style={{display:"flex",alignItems:"center",gap:12,
+                padding:"11px 14px",borderRadius:10,
+                background:isEarn?"#0a1a10":"#1a0a0a",
+                border:`1px solid ${isEarn?"#1a3a1a":"#3a1a1a"}`}}>
+                {/* Icon */}
+                <div style={{width:38,height:38,borderRadius:10,flexShrink:0,
+                  background:isEarn?"#0d2a1a":"#2a0d0d",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>
+                  {t.icon||( isEarn?"◆":"◇")}
+                </div>
+                {/* Label + date */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,color:"#ccd",fontWeight:500,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {t.label||"Transaction"}
+                  </div>
+                  <div style={{fontSize:11,color:"#445566",marginTop:2,display:"flex",gap:8,alignItems:"center"}}>
+                    <span>{t.date||"—"}</span>
+                    <span style={{width:3,height:3,borderRadius:"50%",background:"#2a3a55",display:"inline-block"}}/>
+                    <span style={{color:isEarn?"#2a6a3a":"#6a2a2a",fontWeight:600,letterSpacing:.3,textTransform:"uppercase",fontSize:10}}>
+                      {isEarn?"Earn":"Redeem"}
+                    </span>
+                  </div>
+                </div>
+                {/* Points */}
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:15,fontWeight:800,color:isEarn?"#4ade80":"#f87171"}}>
+                    {isEarn?"+":""}{t.pts.toLocaleString()}
+                  </div>
+                  <div style={{fontSize:10,color:"#2a3a55",letterSpacing:.5}}>PTS</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      }
+
+      {/* Pagination */}
+      {totalPages>1&&<div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,marginTop:16}}>
+        <button className="btn-g" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
+          style={{padding:"6px 14px",fontSize:12,opacity:page===1?0.4:1}}>← Prev</button>
+        <span style={{fontSize:12,color:"#5566aa"}}>{page} / {totalPages}</span>
+        <button className="btn-g" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}
+          style={{padding:"6px 14px",fontSize:12,opacity:page===totalPages?0.4:1}}>Next →</button>
+      </div>}
+    </div>
+  );
+}
+
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 function Profile({ctx,memberId,onBack}){
   const {members,tiers,refLevels,setMembers,showToast}=ctx;
@@ -599,17 +731,7 @@ function Profile({ctx,memberId,onBack}){
           </div>
         </div>
       </div>
-      <div className="card" style={{padding:"24px 26px"}}>
-        <div style={{fontWeight:700,color:"#ccd",marginBottom:16,fontSize:15}}>Transactions</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:320,overflowY:"auto"}}>
-          {member.transactions.map(t=>(
-            <div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",background:"#0a1020",borderRadius:8,border:"1px solid #1a2030"}}>
-              <div><div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{t.label}</div><div style={{fontSize:11,color:"#445566",marginTop:2}}>{t.date}</div></div>
-              <div style={{color:t.pts>0?"#4ade80":"#f87171",fontWeight:700,fontSize:14}}>{t.pts>0?"+":""}{t.pts.toLocaleString()}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <TransactionHistory member={member} tier={tier}/>
       <div className="card" style={{padding:"24px 26px",gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
         <div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showReset?16:0}}>
