@@ -51,7 +51,8 @@ function getDownline(members,rootId,maxDepth){
 }
 
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
-const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw", waTemplates:"lc:waTemplates" };
+const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw", waTemplates:"lc:waTemplates", config:"lc:config" };
+const DEFAULT_CONFIG = { welcomeEnabled:true, welcomePts:100 };
 
 async function loadAll() {
   try {
@@ -96,6 +97,7 @@ export default function AdminApp() {
   const [authed,    setAuthed]          = useState(false);
   const [adminPw,   setAdminPw]        = useState(null);
   const [waTemplates,setWaTemplates]   = useState(null);
+  const [appConfig,  setAppConfig]     = useState(DEFAULT_CONFIG);
   const [pwReady,   setPwReady]        = useState(false);
   const [members,   setMembersState]   = useState(SEED_MEMBERS);
   const [tiers,     setTiersState]     = useState(DEFAULT_TIERS);
@@ -125,15 +127,17 @@ export default function AdminApp() {
           window.storage.get(key, true).catch(()=>null),
           timeout(2000).then(()=>null)
         ]);
-        const [mr,tr,rr,pr,wr] = await Promise.all([
+        const [mr,tr,rr,pr,wr,cr] = await Promise.all([
           safeGet(KEYS.members),
           safeGet(KEYS.tiers),
           safeGet(KEYS.refLevels),
           safeGet(KEYS.adminPw),
           safeGet(KEYS.waTemplates),
+          safeGet(KEYS.config),
         ]);
         if(pr) setAdminPw(pr.value);
         if(wr) setWaTemplates(JSON.parse(wr.value));
+        if(cr) setAppConfig(JSON.parse(cr.value));
         setPwReady(true);
         const members   = mr ? JSON.parse(mr.value) : SEED_MEMBERS;
         const tiers     = tr ? JSON.parse(tr.value) : DEFAULT_TIERS;
@@ -201,8 +205,10 @@ export default function AdminApp() {
   const enrollMember = (name,phone,referredBy,pin="0000",birthday="") => {
     const id=genId();
     const code=name.split(" ")[0].toUpperCase()+"-"+Math.floor(1000+Math.random()*9000);
-    const newM={id,name,phone,pin,birthday,points:100,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,
-      transactions:[{id:genId(),pts:100,icon:"⭐",label:"Welcome Bonus",date:today(),type:"earn"}]};
+    const welcomeOn=appConfig.welcomeEnabled!==false;
+    const welcomePts=welcomeOn?(parseInt(appConfig.welcomePts)||100):0;
+    const txns=welcomeOn?[{id:genId(),pts:welcomePts,icon:"⭐",label:"Welcome Bonus",date:today(),type:"earn"}]:[];
+    const newM={id,name,phone,pin,birthday,points:welcomePts,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,transactions:txns};
     setMembers(prev=>[...prev,newM]);
     return newM;
   };
@@ -227,7 +233,7 @@ export default function AdminApp() {
     </div>
   );
 
-  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates};
+  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig};
 
   return (
     <div style={{minHeight:"100vh",background:"#080c12",color:"#e8eaf0",fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex"}}>
@@ -427,7 +433,7 @@ function Members({ctx,onSelect}){
 
 // ─── ENROLL ───────────────────────────────────────────────────────────────────
 function Enroll({ctx,onDone}){
-  const {members,enrollMember,showToast}=ctx;
+  const {members,enrollMember,showToast,appConfig}=ctx;
   const [form,setForm]=useState({name:"",phone:"",ref:"",pin:"",birthday:""});
   const [err,setErr]=useState({});
   const submit=()=>{
@@ -438,7 +444,8 @@ function Enroll({ctx,onDone}){
     if(Object.keys(e).length){setErr(e);return;}
     const pin=form.pin||"0000";
     const m=enrollMember(form.name.trim(),form.phone,form.ref||null,pin,form.birthday||"");
-    showToast(`${m.name} enrolled! PIN: ${pin}`);
+    const wMsg=ctx.appConfig?.welcomeEnabled!==false?` ${ctx.appConfig?.welcomePts||100} welcome pts awarded.`:" Enrolled with 0 pts.";
+    showToast(`${m.name} enrolled! PIN: ${pin}.${wMsg}`);
     setForm({name:"",phone:"",ref:"",pin:"",birthday:""});setErr({});
   };
   return <div className="fi" style={{maxWidth:520}}>
@@ -475,6 +482,12 @@ function Enroll({ctx,onDone}){
         <input className="inp" type="date" value={form.birthday} onChange={e=>setForm(f=>({...f,birthday:e.target.value}))}
           style={{colorScheme:"dark"}}/>
         <div style={{fontSize:11,color:"#445566",marginTop:5}}>Used for birthday month WhatsApp campaigns</div>
+      </div>
+      <div style={{background:appConfig?.welcomeEnabled!==false?"#0a1a0d":"#1a0d0d",border:`1px solid ${appConfig?.welcomeEnabled!==false?"#1a3a1a":"#3a1a1a"}`,borderRadius:10,padding:"12px 16px",fontSize:13,color:appConfig?.welcomeEnabled!==false?"#4a8a5a":"#aa7777"}}>
+        {appConfig?.welcomeEnabled!==false
+          ?<>⭐ <strong style={{color:"#4ade80"}}>{appConfig?.welcomePts||100} welcome points</strong> will be awarded on enrollment.</>
+          :<>⚠️ Welcome bonus is <strong style={{color:"#ff9999"}}>disabled</strong>. Member will start with 0 points.</>
+        }
       </div>
       <div style={{display:"flex",gap:12}}>
         <button className="btn" onClick={submit}>⊕ Enroll Member</button>
@@ -747,8 +760,86 @@ function DeductPts({ctx}){
   </div>;
 }
 
+
+// ─── WELCOME CONFIG ──────────────────────────────────────────────────────────
+function WelcomeConfig({appConfig,setAppConfig,showToast}){
+  const [enabled,setEnabled] = useState(appConfig.welcomeEnabled!==false);
+  const [pts,setPts]         = useState(String(appConfig.welcomePts||100));
+  const [saving,setSaving]   = useState(false);
+  const [dirty,setDirty]     = useState(false);
+
+  const save=async()=>{
+    const newPts=parseInt(pts)||0;
+    if(newPts<0){showToast("Points cannot be negative","error");return;}
+    setSaving(true);
+    try{
+      const next={welcomeEnabled:enabled,welcomePts:newPts};
+      await window.storage.set(KEYS.config,JSON.stringify(next),true);
+      setAppConfig(next);
+      setDirty(false);
+      showToast("Welcome points setting saved!");
+    }catch(e){showToast("Failed to save","error");}
+    setSaving(false);
+  };
+
+  return(
+    <div className="si card" style={{padding:"28px 30px",maxWidth:480,display:"flex",flexDirection:"column",gap:24}}>
+      <div>
+        <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Welcome Points</div>
+        <div style={{fontSize:13,color:"#445566"}}>Configure points automatically awarded when a new member enrolls.</div>
+      </div>
+
+      {/* Toggle */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px",background:"#0a0f1a",borderRadius:14,border:`1px solid ${enabled?"#1a5a2a":"#1e2535"}`}}>
+        <div>
+          <div style={{fontWeight:600,color:"#ccd",fontSize:14}}>Enable Welcome Bonus</div>
+          <div style={{fontSize:12,color:"#445566",marginTop:3}}>{enabled?"New members receive points on enrollment":"No points awarded on enrollment"}</div>
+        </div>
+        <button onClick={()=>{setEnabled(e=>!e);setDirty(true);}}
+          style={{width:52,height:28,borderRadius:99,border:"none",cursor:"pointer",transition:"all .25s",
+            background:enabled?"linear-gradient(135deg,#f59e0b,#f97316)":"#1e2535",
+            position:"relative",flexShrink:0}}>
+          <div style={{position:"absolute",top:3,left:enabled?26:3,width:22,height:22,borderRadius:"50%",
+            background:"#fff",transition:"left .25s",boxShadow:"0 1px 4px #00000044"}}/>
+        </button>
+      </div>
+
+      {/* Points amount */}
+      {enabled&&<div>
+        <label className="lbl">Welcome Points Amount</label>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginTop:4}}>
+          <input className="inp" type="number" min="0" max="99999" value={pts}
+            onChange={e=>{setPts(e.target.value);setDirty(true);}}
+            style={{maxWidth:160,fontSize:22,fontWeight:700,textAlign:"center",padding:"12px"}}/>
+          <div style={{fontSize:13,color:"#5566aa"}}>points awarded on enrollment</div>
+        </div>
+        <div style={{marginTop:10,background:"#0a1a0d",border:"1px solid #1a3a1a",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#4a8a5a",lineHeight:1.6}}>
+          💡 New member gets <strong style={{color:"#4ade80"}}>{parseInt(pts)||0} pts</strong> and starts at{" "}
+          <strong style={{color:"#4ade80"}}>{parseInt(pts)||0} pts</strong> balance on the Member Portal.
+        </div>
+      </div>}
+
+      {!enabled&&<div style={{background:"#1a0d0d",border:"1px solid #3a1a1a",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#aa7777",lineHeight:1.6}}>
+        ⚠️ Members will enroll with <strong style={{color:"#ff9999"}}>0 points</strong> and no welcome transaction.
+      </div>}
+
+      <button className="btn" onClick={save} disabled={saving||!dirty}
+        style={{alignSelf:"flex-start",padding:"11px 28px",opacity:saving||!dirty?0.5:1}}>
+        {saving?"Saving…":"💾 Save Settings"}
+      </button>
+
+      <div style={{borderTop:"1px solid #1a2030",paddingTop:16,fontSize:12,color:"#2a3a55",lineHeight:1.8}}>
+        <div style={{fontWeight:600,color:"#3a4a66",marginBottom:6}}>How it works:</div>
+        <div>• When <strong style={{color:"#4466aa"}}>enabled</strong> — each new enrolled member automatically receives the configured points and a "Welcome Bonus" transaction entry.</div>
+        <div style={{marginTop:4}}>• When <strong style={{color:"#4466aa"}}>disabled</strong> — members enroll with 0 points and no welcome transaction.</div>
+        <div style={{marginTop:4}}>• Changes apply to <strong style={{color:"#4466aa"}}>new enrollments only</strong> — existing members are not affected.</div>
+      </div>
+    </div>
+  );
+}
+
 function Config({ctx}){
-  const {tiers,setTiers,refLevels,setRefLevels,showToast}=ctx;
+  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig}=ctx;
   const [tab,setTab]=useState("tiers");
   const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
   const [pwErr,setPwErr]=useState("");
@@ -779,7 +870,7 @@ function Config({ctx}){
       <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-      {["tiers","referral","password"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":"🔑 Admin Password"}</button>)}
+      {["tiers","referral","welcome","password"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":"🔑 Admin Password"}</button>)}
     </div>
     {tab==="tiers"&&<div className="si" style={{display:"flex",flexDirection:"column",gap:14}}>
       {tiers.map(t=><div key={t.id} className="card" style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto",gap:14,alignItems:"end"}}>
@@ -811,6 +902,7 @@ function Config({ctx}){
         <button className="btn" onClick={()=>showToast("Referral config saved & synced!")}>Save Config</button>
       </div>
     </div>}
+    {tab==="welcome"&&<WelcomeConfig appConfig={appConfig} setAppConfig={setAppConfig} showToast={showToast}/>}
     {tab==="password"&&<div className="si card" style={{padding:"28px 30px",maxWidth:460,display:"flex",flexDirection:"column",gap:20}}>
       <div>
         <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Change Admin Password</div>
