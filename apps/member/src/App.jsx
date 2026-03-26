@@ -629,7 +629,7 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
         {label:"Member ID",val:member.id},{label:"Total Points",val:`${member.points.toLocaleString()} pts`},
         {label:"Tier Multiplier",val:`×${tier.multiplier} (${tier.name})`},{label:"Referral Code",val:member.referralCode||"—"},
         {label:"Referred By",val:referrer?referrer.name:"—"},{label:"Network Size",val:`${downline.length} members`},
-        {label:"Date of Birth",val:member.birthday?new Date(member.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"long",year:"numeric"}):"Not set"},
+        {label:"Date of Birth",val:member.birthday?(()=>{const p=member.birthday.split("-");if(p.length<2)return"Not set";const d=parseInt(p[1]);const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];return `${d} ${MONTHS[parseInt(p[0])-1]||""}`||"Not set"})():"Not set"},
         {label:"Joined",val:member.joinedAt},
       ].map((r,i)=>(
         <div key={r.label} className="fu" style={{display:"flex",justifyContent:"space-between",padding:"14px 16px",background:"#fff8f0",borderRadius:12,marginBottom:8,border:"1px solid #e8ddd0",animationDelay:`${i*.06}s`}}>
