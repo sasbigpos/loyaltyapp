@@ -142,7 +142,7 @@ export default function MemberApp(){
   if(loading) return(
     <div style={{minHeight:"100vh",background:"#f7f2eb",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,color:"#2a1a0a",marginBottom:16}}>LOYALCORE</div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,color:"#2a1a0a",marginBottom:16}}>B LOYALTY</div>
         <div style={{width:32,height:32,border:"3px solid #e0d4c0",borderTop:"3px solid #f5c842",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
         <div style={{color:"#9a8a7a",fontSize:13,marginTop:16,fontFamily:"'DM Sans',sans-serif"}}>Loading your membership…</div>
       </div>
@@ -217,7 +217,7 @@ function LoginScreen({members,tiers,onLogin}){
 
   const Logo=(
     <div className="fu" style={{textAlign:"center",marginBottom:40}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:44,fontWeight:700,background:"linear-gradient(135deg,#f5c842,#f59e0b)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-1,lineHeight:1}}>LOYALCORE</div>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:44,fontWeight:700,background:"linear-gradient(135deg,#f5c842,#f59e0b)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-1,lineHeight:1}}>B LOYALTY</div>
       <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#5a4a2a",letterSpacing:3,marginTop:6,textTransform:"uppercase"}}>Member Portal</div>
     </div>
   );
@@ -417,7 +417,7 @@ function HomeTab({member,tier,nextTier}){
         <div className="card-shine"/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
           <div>
-            <div className="sans" style={{fontSize:9,color:tier.color,letterSpacing:3,textTransform:"uppercase",marginBottom:4}}>LOYALCORE MEMBER</div>
+            <div className="sans" style={{fontSize:9,color:tier.color,letterSpacing:3,textTransform:"uppercase",marginBottom:4}}>B LOYALTY MEMBER</div>
             <div className="serif" style={{fontSize:20,color:"#f7f2eb",fontWeight:600}}>{member.name}</div>
           </div>
           <div style={{textAlign:"right"}}><div style={{fontSize:28}}>{tier.icon}</div><div className="sans" style={{fontSize:10,color:tier.color,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{tier.name}</div></div>
