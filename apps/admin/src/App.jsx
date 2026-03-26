@@ -246,7 +246,7 @@ export default function AdminApp() {
   if(!pwReady) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:16}}>LOYALCORE</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:16}}>B LOYALTY</div>
         <div style={{width:32,height:32,border:"3px solid #1e2535",borderTop:"3px solid #f59e0b",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
       </div>
     </div>
@@ -256,7 +256,7 @@ export default function AdminApp() {
   if(loading) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:16}}>LOYALCORE</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:16}}>B LOYALTY</div>
         <div style={{width:32,height:32,border:"3px solid #1e2535",borderTop:"3px solid #f59e0b",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
         <div style={{color:"#445566",fontSize:13,marginTop:16,fontFamily:"'DM Sans',sans-serif"}}>Loading shared data…</div>
       </div>
@@ -299,7 +299,7 @@ export default function AdminApp() {
       <div style={{width:220,background:"#09101a",borderRight:"1px solid #1a2030",padding:"24px 16px",display:"flex",flexDirection:"column",flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
         <div style={{marginBottom:28}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>LOYALCORE</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>B LOYALTY</div>
             <SyncDot syncing={syncing}/>
           </div>
           <div style={{fontSize:9,color:"#2a3a4a",letterSpacing:2,textTransform:"uppercase"}}>Admin Portal</div>
@@ -357,7 +357,7 @@ function AdminLogin({onAuth,storedPw}){
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Playfair+Display:wght@700;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}.fu{animation:fadeUp .4s ease both}`}</style>
       <div className="fu" style={{width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:36,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-1}}>LOYALCORE</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:36,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-1}}>B LOYALTY</div>
           <div style={{fontSize:11,color:"#2a3a4a",letterSpacing:3,textTransform:"uppercase",marginTop:6}}>Admin Portal</div>
         </div>
         <div style={{background:"#0e1420",border:"1px solid #1e2535",borderRadius:20,padding:"32px 28px"}}>
@@ -1263,11 +1263,11 @@ function Config({ctx}){
 
 // ─── WHATSAPP BLAST ───────────────────────────────────────────────────────────
 const DEFAULT_WA_TEMPLATES = [
-  { id:"promo",    label:"Promotion",       icon:"🎉", text:"Hi {name}! 🎉 We have an exclusive promotion just for you. Visit us today and enjoy special rewards on your next purchase. Your current balance is {points} pts ({tier} tier). Don't miss out!\n\n— LOYALCORE Team" },
-  { id:"birthday", label:"Birthday Wish",   icon:"🎂", text:"Hi {name}! 🎂 Wishing you a wonderful birthday this {birthday}!\n\nAs a valued {tier} member, we have a special birthday treat waiting for you. Visit us this month to claim your birthday reward!\n\n🎁 Your current balance: {points} pts\n⭐ Tier: {tier} ({multiplier}x multiplier)\n\nHappy Birthday! 🥳\n\n— LOYALCORE Team" },
-  { id:"points",   label:"Points Update",   icon:"✦",  text:"Hi {name}! Your LOYALCORE points balance has been updated.\n\n✦ Current Balance: {points} pts\n✦ Tier: {tier}\n✦ Multiplier: {multiplier}x\n\nKeep earning and unlock more rewards!\n\n— LOYALCORE Team" },
-  { id:"redeem",   label:"Redeem Reminder", icon:"🎁", text:"Hi {name}! 🎁 Reminder: You have {points} pts ready to redeem on exciting rewards. Log in to your LOYALCORE portal to see what's available for you.\n\n— LOYALCORE Team" },
-  { id:"tier",     label:"Tier Achievement", icon:"🏆", text:"Hi {name}! Congratulations! 🏆 You've reached {tier} tier status with {points} pts. Enjoy your {multiplier}x points multiplier on every purchase going forward!\n\n— LOYALCORE Team" },
+  { id:"promo",    label:"Promotion",       icon:"🎉", text:"Hi {name}! 🎉 We have an exclusive promotion just for you. Visit us today and enjoy special rewards on your next purchase. Your current balance is {points} pts ({tier} tier). Don't miss out!\n\n— B LOYALTY Team" },
+  { id:"birthday", label:"Birthday Wish",   icon:"🎂", text:"Hi {name}! 🎂 Wishing you a wonderful birthday this {birthday}!\n\nAs a valued {tier} member, we have a special birthday treat waiting for you. Visit us this month to claim your birthday reward!\n\n🎁 Your current balance: {points} pts\n⭐ Tier: {tier} ({multiplier}x multiplier)\n\nHappy Birthday! 🥳\n\n— B LOYALTY Team" },
+  { id:"points",   label:"Points Update",   icon:"✦",  text:"Hi {name}! Your B LOYALTY points balance has been updated.\n\n✦ Current Balance: {points} pts\n✦ Tier: {tier}\n✦ Multiplier: {multiplier}x\n\nKeep earning and unlock more rewards!\n\n— B LOYALTY Team" },
+  { id:"redeem",   label:"Redeem Reminder", icon:"🎁", text:"Hi {name}! 🎁 Reminder: You have {points} pts ready to redeem on exciting rewards. Log in to your B LOYALTY portal to see what's available for you.\n\n— B LOYALTY Team" },
+  { id:"tier",     label:"Tier Achievement", icon:"🏆", text:"Hi {name}! Congratulations! 🏆 You've reached {tier} tier status with {points} pts. Enjoy your {multiplier}x points multiplier on every purchase going forward!\n\n— B LOYALTY Team" },
 ];
 
 function WhatsAppBlast({ctx}){
