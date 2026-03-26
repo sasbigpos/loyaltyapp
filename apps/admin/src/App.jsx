@@ -22,13 +22,13 @@ const DEFAULT_REF = [
   { level:3, label:"3rd Level Override", overridePercent:2,  color:"#6366f1" },
 ];
 const SEED_MEMBERS = [
-  { id:"m001", name:"Aisha Rahman", phone:"012-3456-789", pin:"1234", birthday:"1990-03-15", points:3200, referredBy:null,   joinedAt:"2024-01-10", referralCode:"AISHA-2024",
+  { id:"m001", name:"Aisha Rahman", phone:"012-3456-789", pin:"1234", birthday:"03-15", points:3200, referredBy:null,   joinedAt:"2024-01-10", referralCode:"AISHA-2024",
     transactions:[{id:"t1a",pts:500,icon:"🍽️",label:"Weekend Dining",date:"Mar 08",type:"earn"},{id:"t1b",pts:200,icon:"👥",label:"Referral Bonus",date:"Mar 05",type:"earn"},{id:"t1c",pts:-150,icon:"🎁",label:"Free Dessert",date:"Mar 01",type:"redeem"},{id:"t1d",pts:800,icon:"🎂",label:"Birthday Campaign",date:"Feb 22",type:"earn"},{id:"t1e",pts:1850,icon:"⭐",label:"Welcome Bonus",date:"Jan 10",type:"earn"}]},
-  { id:"m002", name:"Daniel Tan",   phone:"016-8877-001", pin:"1234", birthday:"1988-07-22", points:720,  referredBy:"m001", joinedAt:"2024-02-14", referralCode:"DTAN-5528",
+  { id:"m002", name:"Daniel Tan",   phone:"016-8877-001", pin:"1234", birthday:"07-22", points:720,  referredBy:"m001", joinedAt:"2024-02-14", referralCode:"DTAN-5528",
     transactions:[{id:"t2a",pts:720,icon:"⭐",label:"Welcome + First Purchase",date:"Feb 14",type:"earn"}]},
-  { id:"m003", name:"Priya Nair",   phone:"011-2345-678", pin:"1234", birthday:"1995-03-08", points:1680, referredBy:"m001", joinedAt:"2024-03-01", referralCode:"PNAIR-889",
+  { id:"m003", name:"Priya Nair",   phone:"011-2345-678", pin:"1234", birthday:"03-08", points:1680, referredBy:"m001", joinedAt:"2024-03-01", referralCode:"PNAIR-889",
     transactions:[{id:"t3a",pts:1680,icon:"⭐",label:"Welcome + Monthly Spend",date:"Mar 01",type:"earn"}]},
-  { id:"m004", name:"Kevin Lim",    phone:"017-5544-332", pin:"1234", birthday:"1992-11-30", points:210,  referredBy:"m002", joinedAt:"2024-04-05", referralCode:"KLIM-221",
+  { id:"m004", name:"Kevin Lim",    phone:"017-5544-332", pin:"1234", birthday:"11-30", points:210,  referredBy:"m002", joinedAt:"2024-04-05", referralCode:"KLIM-221",
     transactions:[{id:"t4a",pts:210,icon:"⭐",label:"Welcome Bonus",date:"Apr 05",type:"earn"}]},
 ];
 
@@ -43,6 +43,25 @@ function getAncestors(members,memberId,maxDepth){
   while(d<maxDepth){const m=members.find(x=>x.id===cur);if(!m||!m.referredBy)break;d++;cur=m.referredBy;r.push({id:cur,level:d});}
   return r;
 }
+// Parse MM-DD birthday into month index (0-based) and display string
+function parseBirthday(bday){
+  if(!bday) return null;
+  const parts=bday.split("-");
+  if(parts.length<2) return null;
+  const month=parseInt(parts[0])-1; // 0-based month
+  const day=parseInt(parts[1]);
+  if(isNaN(month)||isNaN(day)) return null;
+  return {month,day};
+}
+function fmtBirthday(bday,format="short"){
+  const p=parseBirthday(bday);
+  if(!p) return null;
+  const MONTHS_L=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const MONTHS_S=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const m=format==="long"?MONTHS_L[p.month]:MONTHS_S[p.month];
+  return `${p.day} ${m}`;
+}
+
 function getDownline(members,rootId,maxDepth){
   const tree={};
   members.forEach(m=>{if(m.referredBy)tree[m.referredBy]=[...(tree[m.referredBy]||[]),m.id];});
@@ -433,7 +452,7 @@ function Members({ctx,onSelect}){
               <td style={{padding:"14px 20px"}}><TierBadge tier={tier}/></td>
               <td style={{padding:"14px 20px",fontWeight:700,color:tier.color,fontSize:14}}>{m.points.toLocaleString()}</td>
               <td style={{padding:"14px 20px",color:"#6677aa",fontSize:13}}>{ref?ref.name:<span style={{color:"#2a3a55"}}>—</span>}</td>
-              <td style={{padding:"14px 20px",color:"#f59e0b",fontSize:12}}>{m.birthday?new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):<span style={{color:"#2a3a55"}}>—</span>}</td>
+              <td style={{padding:"14px 20px",color:"#f59e0b",fontSize:12}}>{m.birthday?fmtBirthday(m.birthday,"short")||"—":<span style={{color:"#2a3a55"}}>—</span>}</td>
               <td style={{padding:"14px 20px",color:"#5566aa",fontSize:12}}>{m.joinedAt}</td>
             </tr>;
           })}
@@ -491,8 +510,22 @@ function Enroll({ctx,onDone}){
       </div>
       <div>
         <label className="lbl">Date of Birth <span style={{color:"#2a3a55",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label>
-        <input className="inp" type="date" value={form.birthday} onChange={e=>setForm(f=>({...f,birthday:e.target.value}))}
-          style={{colorScheme:"dark"}}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label className="lbl" style={{fontSize:10}}>Month</label>
+            <select className="inp" value={form.birthday?form.birthday.split("-")[0]:""} onChange={e=>{const d=form.birthday?form.birthday.split("-")[1]||"01":"01";setForm(f=>({...f,birthday:e.target.value?`${e.target.value}-${d}`:""}));}}>
+              <option value="">— Month —</option>
+              {["01","02","03","04","05","06","07","08","09","10","11","12"].map((m,i)=><option key={m} value={m}>{["January","February","March","April","May","June","July","August","September","October","November","December"][i]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="lbl" style={{fontSize:10}}>Day</label>
+            <select className="inp" value={form.birthday?form.birthday.split("-")[1]||"":""} onChange={e=>{const mo=form.birthday?form.birthday.split("-")[0]||"01":"01";setForm(f=>({...f,birthday:mo&&e.target.value?`${mo}-${e.target.value}`:""}));}}>
+              <option value="">— Day —</option>
+              {Array.from({length:31},(_,i)=>String(i+1).padStart(2,"0")).map(d=><option key={d} value={d}>{parseInt(d)}</option>)}
+            </select>
+          </div>
+        </div>
         <div style={{fontSize:11,color:"#445566",marginTop:5}}>Used for birthday month WhatsApp campaigns</div>
       </div>
       <div style={{background:appConfig?.welcomeEnabled!==false?"#0a1a0d":"#1a0d0d",border:`1px solid ${appConfig?.welcomeEnabled!==false?"#1a3a1a":"#3a1a1a"}`,borderRadius:10,padding:"12px 16px",fontSize:13,color:appConfig?.welcomeEnabled!==false?"#4a8a5a":"#aa7777"}}>
@@ -716,7 +749,7 @@ function Profile({ctx,memberId,onBack}){
           <div><div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:"#e8eaf0"}}>{member.name}</div><TierBadge tier={tier}/></div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Date of Birth",v:member.birthday?new Date(member.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"long",year:"numeric"}):"Not set"},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
+          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Date of Birth",v:member.birthday?fmtBirthday(member.birthday,"long")||"Not set":"Not set"},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
             <div key={r.l} style={{display:"flex",justifyContent:"space-between"}}>
               <span style={{color:"#5566aa",fontSize:13}}>{r.l}</span>
               <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{r.v}</span>
@@ -756,14 +789,23 @@ function Profile({ctx,memberId,onBack}){
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showBday?16:0}}>
             <div>
               <div style={{fontWeight:700,color:"#ccd",fontSize:15}}>Date of Birth</div>
-              <div style={{fontSize:12,color:"#445566",marginTop:2}}>{member.birthday?new Date(member.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"long",year:"numeric"}):<span style={{color:"#2a3a55"}}>Not set</span>}</div>
+              <div style={{fontSize:12,color:"#445566",marginTop:2}}>{member.birthday?fmtBirthday(member.birthday,"long")||"Not set":<span style={{color:"#2a3a55"}}>Not set</span>}</div>
             </div>
             <button className="btn-g" onClick={()=>setShowBday(s=>!s)} style={{fontSize:12}}>{showBday?"Cancel":"Edit"}</button>
           </div>
           {showBday&&<div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
             <div style={{flex:1}}>
               <label className="lbl">Date of Birth</label>
-              <input className="inp" type="date" value={editBday} onChange={e=>setEditBday(e.target.value)} style={{colorScheme:"dark"}}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <select className="inp" value={editBday?editBday.split("-")[0]:""} onChange={e=>{const d=editBday?editBday.split("-")[1]||"01":"01";setEditBday(e.target.value?`${e.target.value}-${d}`:"");}}>
+                  <option value="">— Month —</option>
+                  {["01","02","03","04","05","06","07","08","09","10","11","12"].map((m,i)=><option key={m} value={m}>{["January","February","March","April","May","June","July","August","September","October","November","December"][i]}</option>)}
+                </select>
+                <select className="inp" value={editBday?editBday.split("-")[1]||"":""} onChange={e=>{const mo=editBday?editBday.split("-")[0]||"01":"01";setEditBday(mo&&e.target.value?`${mo}-${e.target.value}`:"");}}>
+                  <option value="">— Day —</option>
+                  {Array.from({length:31},(_,i)=>String(i+1).padStart(2,"0")).map(d=><option key={d} value={d}>{parseInt(d)}</option>)}
+                </select>
+              </div>
             </div>
             <button className="btn" onClick={()=>{setMembers(prev=>prev.map(m=>m.id===memberId?{...m,birthday:editBday}:m));showToast("Birthday updated!");setShowBday(false);}} style={{whiteSpace:"nowrap"}}>Save</button>
           </div>}
@@ -1275,7 +1317,8 @@ function WhatsAppBlast({ctx}){
   const template=templates.find(t=>t.id===templateId)||templates[0];
   const getBirthdayList=(monthIdx)=>members.filter(m=>{
     if(!m.birthday)return false;
-    return new Date(m.birthday+"T00:00:00").getMonth()===parseInt(monthIdx);
+    const p=parseBirthday(m.birthday);
+    return p&&p.month===parseInt(monthIdx);
   });
   const getRecipients=()=>{
     if(recipients==="all")return members;
@@ -1285,7 +1328,7 @@ function WhatsAppBlast({ctx}){
   };
   const buildMsg=(member,rawText)=>{
     const tier=getTier(member.points,tiers);
-    const bdayMonth=member.birthday?MONTHS[new Date(member.birthday+"T00:00:00").getMonth()]:"";
+    const bdayMonth=member.birthday?(()=>{const p=parseBirthday(member.birthday);return p?MONTHS[p.month]:"";})():"";
     return (rawText||"").replace(/{name}/g,member.name.split(" ")[0]).replace(/{fullname}/g,member.name).replace(/{points}/g,member.points.toLocaleString()).replace(/{tier}/g,tier.name).replace(/{multiplier}/g,tier.multiplier).replace(/{birthday}/g,bdayMonth);
   };
   const waLink=(phone,msg)=>{
@@ -1391,7 +1434,7 @@ function WhatsAppBlast({ctx}){
           </div>
           {editing.text&&<div style={{background:"#0a1a10",border:"1px solid #1a3a1a",borderRadius:10,padding:"14px",marginBottom:14}}>
             <div style={{fontSize:11,color:"#4a7a4a",fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:8}}>Preview</div>
-            <div style={{fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"1990-03-15"},editing.text)}</div>
+            <div style={{fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"03-15"},editing.text)}</div>
           </div>}
           {editErr&&<div style={{color:"#f87171",fontSize:13,marginBottom:12,background:"#2a0d0d",borderRadius:8,padding:"8px 12px"}}>{editErr}</div>}
           <div style={{display:"flex",gap:10}}>
@@ -1447,7 +1490,7 @@ function WhatsAppBlast({ctx}){
                   placeholder={"Hi {name}! Use {points}, {tier}, {birthday} as placeholders."}
                   style={{width:"100%",minHeight:140,background:"#0a0f1a",border:"1px solid #1e2535",borderRadius:10,color:"#e8eaf0",padding:"12px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",resize:"vertical",outline:"none",lineHeight:1.6,marginTop:4}}></textarea>
               :<div style={{background:"#0a0f1a",borderRadius:10,padding:"14px",border:"1px solid #1e2535",fontSize:13,color:"#8899bb",lineHeight:1.7,whiteSpace:"pre-wrap",marginTop:4,minHeight:100}}>
-                {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"1990-03-15"},msgText)}
+                {buildMsg(members[0]||{name:"Ahmad",points:1200,phone:"",birthday:"03-15"},msgText)}
               </div>
             }
             <div style={{marginTop:8,fontSize:11,color:"#2a3a55"}}>
@@ -1500,7 +1543,7 @@ function WhatsAppBlast({ctx}){
                     <span style={{fontSize:16}}>🎂</span>
                     <div style={{flex:1}}>
                       <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
-                      <div style={{fontSize:11,color:"#445566"}}>{m.birthday?new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):""}</div>
+                      <div style={{fontSize:11,color:"#445566"}}>{m.birthday?fmtBirthday(m.birthday,"short")||"":""}</div>
                     </div>
                     <span style={{fontSize:10,color:t.color,background:`${t.color}18`,padding:"2px 8px",borderRadius:99,fontWeight:700}}>{t.name}</span>
                   </div>
@@ -1520,7 +1563,7 @@ function WhatsAppBlast({ctx}){
                   <input type="checkbox" checked={selIds.includes(m.id)} onChange={()=>toggleId(m.id)} style={{accentColor:"#f59e0b",width:16,height:16}}/>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
-                    <div style={{fontSize:11,color:"#445566"}}>{m.phone}{m.birthday?" · 🎂 "+new Date(m.birthday+"T00:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short"}):""}</div>
+                    <div style={{fontSize:11,color:"#445566"}}>{m.phone}{m.birthday?" · 🎂 "+(fmtBirthday(m.birthday,"short")||""):""}</div>
                   </div>
                   <span style={{fontSize:10,color:t.color,fontWeight:700,background:`${t.color}18`,padding:"2px 8px",borderRadius:99}}>{t.name}</span>
                 </label>
