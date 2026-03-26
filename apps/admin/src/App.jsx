@@ -285,7 +285,7 @@ export default function AdminApp() {
           </div>
           <div style={{fontSize:9,color:"#2a3a4a",letterSpacing:2,textTransform:"uppercase"}}>Admin Portal</div>
         </div>
-        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"redeem",icon:"🎁",label:"Redeem Rewards"},{id:"whatsapp",icon:"💬",label:"WhatsApp Blast"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
+        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"redeem",icon:"🎁",label:"Redeem Rewards"},{id:"history",icon:"◷",label:"All Transactions"},{id:"whatsapp",icon:"💬",label:"WhatsApp Blast"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
           <div key={n.id} className={`nav${view===n.id?" on":""}`} onClick={()=>{setView(n.id);setSelId(null);}}>
             <span style={{fontSize:16}}>{n.icon}</span>{n.label}
           </div>
@@ -310,6 +310,7 @@ export default function AdminApp() {
         {view==="config"    && <Config    ctx={ctx}/>}
         {view==="whatsapp"  && <WhatsAppBlast ctx={ctx}/>}
         {view==="redeem"    && <RedeemRewards ctx={ctx}/>}
+        {view==="history"   && <AllTransactions ctx={ctx} onSelect={id=>{setSelId(id);setView("profile");}}/>}
         {view==="profile"   && selId && <Profile ctx={ctx} memberId={selId} onBack={()=>setView("members")}/>}
       </div>
 
@@ -692,8 +693,10 @@ function Profile({ctx,memberId,onBack}){
   const [resetPin,setResetPin]=useState("");
   const [showReset,setShowReset]=useState(false);
   const [showBday,setShowBday]=useState(false);
-  const [editBday,setEditBday]=useState(member?.birthday||"");
+  const [editBday,setEditBday]=useState("");
   const member=members.find(m=>m.id===memberId);if(!member)return null;
+  // Sync editBday when member data loads
+  useEffect(()=>{ setEditBday(member.birthday||""); },[memberId]);
   const tier=getTier(member.points,tiers);
   const nextTier=tiers.find(t=>t.minPoints>member.points);
   const referrer=members.find(m=>m.id===member.referredBy);
@@ -1546,6 +1549,214 @@ function WhatsAppBlast({ctx}){
             </button>
           </div>
         </div>
+      </div>}
+    </div>
+  );
+}
+
+// ─── ALL TRANSACTIONS ─────────────────────────────────────────────────────────
+function AllTransactions({ctx,onSelect}){
+  const {members,tiers}=ctx;
+  const [filter,setFilter]=useState("all");      // all | earn | redeem
+  const [memberFilter,setMemberFilter]=useState("all");
+  const [search,setSearch]=useState("");
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
+  const [page,setPage]=useState(1);
+  const PER_PAGE=20;
+
+  // Flatten all transactions with member info
+  const allTxns=members.flatMap(m=>
+    (m.transactions||[]).map(t=>({...t,memberId:m.id,memberName:m.name,memberPhone:m.phone,tier:getTier(m.points,tiers)}))
+  ).sort((a,b)=>{
+    // Sort by date descending - try to parse date strings
+    const da=new Date(a.date); const db=new Date(b.date);
+    if(!isNaN(da)&&!isNaN(db)) return db-da;
+    return 0; // keep original order if unparseable
+  });
+
+  // Stats
+  const totalEarned =allTxns.filter(t=>t.pts>0).reduce((s,t)=>s+t.pts,0);
+  const totalRedeemed=allTxns.filter(t=>t.pts<0).reduce((s,t)=>s+Math.abs(t.pts),0);
+  const earnCount   =allTxns.filter(t=>t.pts>0).length;
+  const redeemCount =allTxns.filter(t=>t.pts<0).length;
+
+  // Filter
+  const filtered=allTxns.filter(t=>{
+    if(filter==="earn"&&t.pts<=0) return false;
+    if(filter==="redeem"&&t.pts>=0) return false;
+    if(memberFilter!=="all"&&t.memberId!==memberFilter) return false;
+    if(search){
+      const q=search.toLowerCase();
+      if(!t.label?.toLowerCase().includes(q)&&!t.memberName?.toLowerCase().includes(q)&&!t.date?.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalPages=Math.max(1,Math.ceil(filtered.length/PER_PAGE));
+  const safePage=Math.min(page,totalPages);
+  const paginated=filtered.slice((safePage-1)*PER_PAGE,safePage*PER_PAGE);
+
+  const reset=(fn)=>{ fn(); setPage(1); };
+
+  return(
+    <div className="fi">
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>All Transactions</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>{allTxns.length} total transactions across {members.length} members</p>
+      </div>
+
+      {/* Summary stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+        {[
+          {label:"Total Transactions",val:allTxns.length,       sub:"all time",         color:"#60a5fa",bg:"#0d1a2a",border:"#1a3050"},
+          {label:"Total Earned",      val:"+"+totalEarned.toLocaleString()+" pts", sub:earnCount+" transactions",    color:"#4ade80",bg:"#0d2a1a",border:"#1a4a2a"},
+          {label:"Total Redeemed",    val:"−"+totalRedeemed.toLocaleString()+" pts",sub:redeemCount+" redemptions",  color:"#f87171",bg:"#2a0d0d",border:"#4a1a1a"},
+          {label:"Active Members",    val:new Set(allTxns.map(t=>t.memberId)).size, sub:"with transactions",         color:"#f59e0b",bg:"#1a1208",border:"#3a2a12"},
+        ].map(s=>(
+          <div key={s.label} className="card" style={{padding:"16px 18px",background:s.bg,border:`1px solid ${s.border}`}}>
+            <div style={{fontSize:18,fontWeight:800,color:s.color,marginBottom:2}}>{s.val}</div>
+            <div style={{fontSize:10,color:s.color,opacity:.7,letterSpacing:.5,textTransform:"uppercase"}}>{s.sub}</div>
+            <div style={{fontSize:11,color:"#2a3a55",marginTop:4}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters row */}
+      <div className="card" style={{padding:"16px 20px",marginBottom:16,display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+        {/* Type filter */}
+        <div style={{display:"flex",gap:6}}>
+          {[["all","All"],["earn","Earned"],["redeem","Redeemed"]].map(([v,l])=>(
+            <button key={v} onClick={()=>reset(()=>setFilter(v))}
+              style={{padding:"7px 14px",borderRadius:99,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
+                background:filter===v?"linear-gradient(135deg,#f59e0b,#f97316)":"#0a0f1a",
+                color:filter===v?"#000":"#5566aa",transition:"all .15s"}}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* Member filter */}
+        <select className="inp" value={memberFilter} onChange={e=>reset(()=>setMemberFilter(e.target.value))}
+          style={{width:200,padding:"7px 12px",fontSize:13}}>
+          <option value="all">All Members</option>
+          {members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+
+        {/* Search */}
+        <input className="inp" placeholder="Search label, member…" value={search}
+          onChange={e=>reset(()=>setSearch(e.target.value))}
+          style={{flex:1,minWidth:160,padding:"7px 12px",fontSize:13}}/>
+
+        {/* Result count */}
+        <div style={{fontSize:12,color:"#445566",whiteSpace:"nowrap"}}>
+          {filtered.length} result{filtered.length!==1?"s":""}
+        </div>
+
+        {/* Clear filters */}
+        {(filter!=="all"||memberFilter!=="all"||search)&&
+          <button className="btn-g" onClick={()=>{setFilter("all");setMemberFilter("all");setSearch("");setPage(1);}}
+            style={{fontSize:12,padding:"6px 14px",whiteSpace:"nowrap"}}>
+            ✕ Clear
+          </button>
+        }
+      </div>
+
+      {/* Transactions table */}
+      <div className="card" style={{overflow:"hidden"}}>
+        {/* Table header */}
+        <div style={{display:"grid",gridTemplateColumns:"44px 1fr 160px 100px 80px 80px",gap:0,
+          borderBottom:"1px solid #1a2030",padding:"12px 16px"}}>
+          {["","Transaction","Member","Date","Type","Points"].map((h,i)=>(
+            <div key={i} style={{fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</div>
+          ))}
+        </div>
+
+        {/* Rows */}
+        {paginated.length===0
+          ?<div style={{textAlign:"center",padding:"40px 0",color:"#2a3a55",fontSize:13}}>No transactions found</div>
+          :paginated.map((t,i)=>{
+            const isEarn=t.pts>0;
+            return(
+              <div key={t.id||i}
+                style={{display:"grid",gridTemplateColumns:"44px 1fr 160px 100px 80px 80px",gap:0,
+                  padding:"12px 16px",borderBottom:"1px solid #0e1825",
+                  background:i%2===0?"#080c12":"#090d14",
+                  transition:"background .15s",cursor:"pointer"}}
+                onClick={()=>onSelect(t.memberId)}
+                onMouseEnter={e=>e.currentTarget.style.background="#0e1420"}
+                onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#080c12":"#090d14"}>
+
+                {/* Icon */}
+                <div style={{display:"flex",alignItems:"center"}}>
+                  <div style={{width:32,height:32,borderRadius:8,
+                    background:isEarn?"#0d2a1a":"#2a0d0d",
+                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>
+                    {t.icon||(isEarn?"◆":"◇")}
+                  </div>
+                </div>
+
+                {/* Label */}
+                <div style={{display:"flex",alignItems:"center"}}>
+                  <div style={{fontSize:13,color:"#ccd",fontWeight:500,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:8}}>
+                    {t.label||"Transaction"}
+                  </div>
+                </div>
+
+                {/* Member */}
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div>
+                    <div style={{fontSize:12,color:"#8899bb",fontWeight:500}}>{t.memberName}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:4,marginTop:2}}>
+                      <span style={{fontSize:9,color:t.tier.color,fontWeight:700,background:`${t.tier.color}18`,
+                        padding:"1px 6px",borderRadius:99,letterSpacing:.5,textTransform:"uppercase"}}>
+                        {t.tier.name}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Date */}
+                <div style={{display:"flex",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:"#445566"}}>{t.date||"—"}</span>
+                </div>
+
+                {/* Type badge */}
+                <div style={{display:"flex",alignItems:"center"}}>
+                  <span style={{fontSize:10,fontWeight:700,letterSpacing:.5,textTransform:"uppercase",
+                    color:isEarn?"#4ade80":"#f87171",
+                    background:isEarn?"#0d2a1a":"#2a0d0d",
+                    padding:"3px 8px",borderRadius:99,border:`1px solid ${isEarn?"#1a4a2a":"#4a1a1a"}`}}>
+                    {isEarn?"Earn":"Redeem"}
+                  </span>
+                </div>
+
+                {/* Points */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
+                  <span style={{fontSize:14,fontWeight:800,color:isEarn?"#4ade80":"#f87171"}}>
+                    {isEarn?"+":""}{t.pts.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        }
+      </div>
+
+      {/* Pagination */}
+      {totalPages>1&&<div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:10,marginTop:16}}>
+        <button className="btn-g" onClick={()=>setPage(1)} disabled={safePage===1}
+          style={{padding:"6px 12px",fontSize:12,opacity:safePage===1?0.4:1}}>«</button>
+        <button className="btn-g" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={safePage===1}
+          style={{padding:"6px 14px",fontSize:12,opacity:safePage===1?0.4:1}}>← Prev</button>
+        <span style={{fontSize:13,color:"#5566aa",minWidth:80,textAlign:"center"}}>
+          {safePage} / {totalPages}
+        </span>
+        <button className="btn-g" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={safePage===totalPages}
+          style={{padding:"6px 14px",fontSize:12,opacity:safePage===totalPages?0.4:1}}>Next →</button>
+        <button className="btn-g" onClick={()=>setPage(totalPages)} disabled={safePage===totalPages}
+          style={{padding:"6px 12px",fontSize:12,opacity:safePage===totalPages?0.4:1}}>»</button>
       </div>}
     </div>
   );
