@@ -727,9 +727,10 @@ function Profile({ctx,memberId,onBack}){
   const [showReset,setShowReset]=useState(false);
   const [showBday,setShowBday]=useState(false);
   const [editBday,setEditBday]=useState("");
-  const member=members.find(m=>m.id===memberId);if(!member)return null;
-  // Sync editBday when member data loads
-  useEffect(()=>{ setEditBday(member.birthday||""); },[memberId]);
+  // Sync editBday when member changes - must be before any conditional return
+  const member=members.find(m=>m.id===memberId);
+  useEffect(()=>{ if(member) setEditBday(member.birthday||""); },[memberId, member?.birthday]);
+  if(!member)return null;
   const tier=getTier(member.points,tiers);
   const nextTier=tiers.find(t=>t.minPoints>member.points);
   const referrer=members.find(m=>m.id===member.referredBy);
