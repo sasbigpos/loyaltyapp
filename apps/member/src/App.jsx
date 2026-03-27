@@ -302,14 +302,7 @@ function LoginScreen({members,tiers,onLogin}){
       <div style={{position:"absolute",top:"-15%",right:"-20%",width:300,height:300,borderRadius:"50%",background:"radial-gradient(ellipse,#f5c84214,transparent 70%)"}}/>
       <div style={{position:"absolute",bottom:"-15%",left:"-20%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(ellipse,#cd7f3210,transparent 70%)"}}/>
       {Logo}
-      <div className="fu" style={{display:"flex",gap:24,marginBottom:36,animationDelay:".08s"}}>
-        {[{val:members.length,label:"Members"},{val:[...tiers].reverse()[0]?.name||"Platinum",label:"Top Tier"},{val:tiers.length,label:"Tiers"}].map(s=>(
-          <div key={s.label} style={{textAlign:"center"}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:"#f5c842"}}>{s.val}</div>
-            <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#5a4a2a",letterSpacing:.8}}>{s.label}</div>
-          </div>
-        ))}
-      </div>
+
       <div className="si" style={{width:"100%",background:"#14100a",border:"1px solid #3a2a12",borderRadius:22,padding:"32px 28px",animationDelay:".12s"}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#f7f2eb",fontWeight:600,marginBottom:6}}>Welcome back</div>
         <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#6a5a3a",marginBottom:24}}>Enter your mobile number to access your account</div>
