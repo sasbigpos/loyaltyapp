@@ -246,7 +246,7 @@ export default function AdminApp() {
   if(!pwReady) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:16}}>B LOYALTY</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#10b981",WebkitTextFillColor:"#10b981",marginBottom:16}}>B LOYALTY</div>
         <div style={{width:32,height:32,border:"3px solid #1e2535",borderTop:"3px solid #f59e0b",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
       </div>
     </div>
@@ -256,7 +256,7 @@ export default function AdminApp() {
   if(loading) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:16}}>B LOYALTY</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#10b981",WebkitTextFillColor:"#10b981",marginBottom:16}}>B LOYALTY</div>
         <div style={{width:32,height:32,border:"3px solid #1e2535",borderTop:"3px solid #f59e0b",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
         <div style={{color:"#445566",fontSize:13,marginTop:16,fontFamily:"'DM Sans',sans-serif"}}>Loading shared data…</div>
       </div>
@@ -299,7 +299,7 @@ export default function AdminApp() {
       <div style={{width:220,background:"#09101a",borderRight:"1px solid #1a2030",padding:"24px 16px",display:"flex",flexDirection:"column",flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
         <div style={{marginBottom:28}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>B LOYALTY</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:900,color:"#10b981",WebkitTextFillColor:"#10b981"}}>B LOYALTY</div>
             <SyncDot syncing={syncing}/>
           </div>
           <div style={{fontSize:9,color:"#2a3a4a",letterSpacing:2,textTransform:"uppercase"}}>Admin Portal</div>
@@ -357,7 +357,7 @@ function AdminLogin({onAuth,storedPw}){
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Playfair+Display:wght@700;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}.fu{animation:fadeUp .4s ease both}`}</style>
       <div className="fu" style={{width:"100%",maxWidth:400}}>
         <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:36,fontWeight:900,background:"linear-gradient(135deg,#f59e0b,#f97316)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-1}}>B LOYALTY</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:36,fontWeight:900,color:"#10b981",WebkitTextFillColor:"#10b981",letterSpacing:-1}}>B LOYALTY</div>
           <div style={{fontSize:11,color:"#2a3a4a",letterSpacing:3,textTransform:"uppercase",marginTop:6}}>Admin Portal</div>
         </div>
         <div style={{background:"#0e1420",border:"1px solid #1e2535",borderRadius:20,padding:"32px 28px"}}>
@@ -831,6 +831,358 @@ function Profile({ctx,memberId,onBack}){
 
 // ─── REDEEM REWARDS ──────────────────────────────────────────────────────────
 function RedeemRewards({ctx}){
+  const {members,tiers,rewards=[],setRewards,setMembers,showToast}=ctx;
+  const [tab,setTab]=useState("redeem");
+
+  // ── Image upload helper ──
+  const readImage=(file)=>new Promise((resolve,reject)=>{
+    if(!file) return resolve(null);
+    if(file.size>500000){reject(new Error("Image must be under 500KB"));return;}
+    const r=new FileReader();
+    r.onload=e=>resolve(e.target.result);
+    r.onerror=()=>reject(new Error("Failed to read file"));
+    r.readAsDataURL(file);
+  });
+
+  // ── Manage rewards ──
+  const [editing,setEditing]=useState(null);
+  const [editErr,setEditErr]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [imgLoading,setImgLoading]=useState(false);
+
+  const saveRewards=async(next)=>{
+    setSaving(true);
+    try{
+      await window.storage.set(KEYS.rewards,JSON.stringify(next),true);
+      setRewards(next);
+      showToast("Rewards saved!");
+    }catch(e){showToast("Failed to save — image may be too large","error");}
+    setSaving(false);
+  };
+
+  const startNew=()=>setEditing({id:genId(),name:"",pts:"",icon:"🎁",image:null,category:"",active:true,isNew:true});
+  const startEdit=(r)=>setEditing({...r,pts:String(r.pts)});
+  const toggleActive=(id)=>saveRewards(rewards.map(r=>r.id===id?{...r,active:!r.active}:r));
+  const deleteReward=async(id)=>{
+    if(rewards.length<=1){showToast("Must keep at least one reward","error");return;}
+    saveRewards(rewards.filter(r=>r.id!==id));
+  };
+
+  const handleImageUpload=async(e)=>{
+    const file=e.target.files?.[0];
+    if(!file)return;
+    setImgLoading(true);
+    try{
+      const b64=await readImage(file);
+      setEditing(v=>({...v,image:b64}));
+    }catch(err){showToast(err.message||"Upload failed","error");}
+    setImgLoading(false);
+  };
+
+  const saveEdit=async()=>{
+    if(!editing.name.trim()){setEditErr("Name is required.");return;}
+    if(!parseInt(editing.pts)||parseInt(editing.pts)<=0){setEditErr("Points must be greater than 0.");return;}
+    setEditErr("");
+    const item={
+      id:editing.id,
+      name:editing.name.trim(),
+      pts:parseInt(editing.pts),
+      icon:editing.icon||"🎁",
+      image:editing.image||null,
+      category:editing.category.trim(),
+      active:editing.active!==false,
+    };
+    const next=editing.isNew?[...rewards,item]:rewards.map(r=>r.id===editing.id?item:r);
+    await saveRewards(next);
+    setEditing(null);
+  };
+
+  // ── Redeem flow ──
+  const [sel,setSel]=useState("");
+  const [selReward,setSelReward]=useState(null);
+  const [confirm,setConfirm]=useState(false);
+  const [catFilter,setCatFilter]=useState("All");
+  const member=members.find(m=>m.id===sel);
+  const tier=member?getTier(member.points,tiers):null;
+
+  const reset=()=>{setSel("");setSelReward(null);setConfirm(false);};
+  const doRedeem=()=>{
+    if(!member||!selReward)return;
+    setMembers(prev=>prev.map(m=>m.id===member.id
+      ?{...m,points:m.points-selReward.pts,
+          transactions:[{id:genId(),pts:-selReward.pts,icon:selReward.icon||"🎁",label:`${selReward.name} Redeemed`,date:today(),type:"redeem"},...m.transactions]}
+      :m
+    ));
+    showToast(`${selReward.name} redeemed for ${member.name}! −${selReward.pts.toLocaleString()} pts`);
+    reset();
+  };
+
+  const activeRewards=rewards.filter(r=>r.active!==false);
+  const cats=["All",...new Set(activeRewards.map(r=>r.category).filter(Boolean))];
+  const filtered=catFilter==="All"?activeRewards:activeRewards.filter(r=>r.category===catFilter);
+
+  // Shared reward thumbnail component
+  const RewardThumb=({reward,size=48,radius=10})=>(
+    <div style={{width:size,height:size,borderRadius:radius,flexShrink:0,overflow:"hidden",
+      background:"#0a0f1a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      {reward.image
+        ?<img src={reward.image} alt={reward.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+        :<span style={{fontSize:size*0.5}}>{reward.icon||"🎁"}</span>}
+    </div>
+  );
+
+  return(
+    <div className="fi" style={{maxWidth:720}}>
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Redeem Rewards</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Process member reward redemptions or manage the rewards catalogue</p>
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:22}}>
+        {[{id:"redeem",label:"🎁 Redeem for Member"},{id:"manage",label:"⚙️ Manage Catalogue"}].map(t=>(
+          <button key={t.id} onClick={()=>{setTab(t.id);setEditing(null);}}
+            style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
+              background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+              color:tab===t.id?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MANAGE CATALOGUE ── */}
+      {tab==="manage"&&<div style={{display:"flex",flexDirection:"column",gap:14}}>
+        {editing&&<div className="card si" style={{padding:"24px 26px",marginBottom:4}}>
+          <div style={{fontWeight:700,color:"#e8eaf0",fontSize:15,marginBottom:18}}>{editing.isNew?"New Reward":"Edit Reward"}</div>
+
+          {/* Image upload section */}
+          <div style={{marginBottom:18}}>
+            <label className="lbl">Reward Image</label>
+            <div style={{display:"flex",alignItems:"flex-start",gap:16,marginTop:6}}>
+              {/* Preview */}
+              <div style={{width:100,height:100,borderRadius:14,overflow:"hidden",flexShrink:0,
+                background:"#0a0f1a",border:"2px dashed #1e2535",
+                display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                {editing.image
+                  ?<img src={editing.image} alt="preview" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                  :<span style={{fontSize:36}}>{editing.icon||"🎁"}</span>}
+                {editing.image&&<button
+                  onClick={()=>setEditing(v=>({...v,image:null}))}
+                  style={{position:"absolute",top:4,right:4,width:20,height:20,borderRadius:"50%",
+                    background:"#cc0000",border:"none",color:"#fff",fontSize:11,cursor:"pointer",
+                    display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>✕</button>}
+              </div>
+              {/* Upload controls */}
+              <div style={{flex:1}}>
+                <label style={{display:"block",padding:"10px 16px",background:"#0e1420",
+                  border:"1px solid #1e2535",borderRadius:10,cursor:"pointer",
+                  fontSize:13,color:"#8899bb",textAlign:"center",transition:"all .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="#f59e0b44"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="#1e2535"}>
+                  {imgLoading?"Uploading…":"📷 Click to upload image"}
+                  <input type="file" accept="image/*" onChange={handleImageUpload}
+                    style={{display:"none"}} disabled={imgLoading}/>
+                </label>
+                <div style={{fontSize:11,color:"#2a3a55",marginTop:8,lineHeight:1.6}}>
+                  Accepted: JPG, PNG, WebP · Max 500KB<br/>
+                  Recommended: square image (1:1 ratio)
+                </div>
+                {editing.image&&<div style={{fontSize:11,color:"#4ade80",marginTop:6}}>✓ Image uploaded</div>}
+              </div>
+            </div>
+          </div>
+
+          {/* Name, Points, Fallback icon */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 130px 70px",gap:14,marginBottom:14}}>
+            <div>
+              <label className="lbl">Reward Name *</label>
+              <input className="inp" placeholder="e.g. Free Dessert" value={editing.name}
+                onChange={e=>setEditing(v=>({...v,name:e.target.value}))}/>
+            </div>
+            <div>
+              <label className="lbl">Points Cost *</label>
+              <input className="inp" type="number" min="1" placeholder="200" value={editing.pts}
+                onChange={e=>setEditing(v=>({...v,pts:e.target.value}))}/>
+            </div>
+            <div>
+              <label className="lbl">Fallback Icon</label>
+              <input className="inp" value={editing.icon||"🎁"} maxLength={2}
+                onChange={e=>setEditing(v=>({...v,icon:e.target.value}))}
+                style={{textAlign:"center",fontSize:20,padding:"10px 4px"}}
+                title="Shown if no image is uploaded"/>
+            </div>
+          </div>
+
+          {/* Category + Status */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 120px",gap:14,marginBottom:14}}>
+            <div>
+              <label className="lbl">Category <span style={{color:"#2a3a55",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label>
+              <input className="inp" placeholder="e.g. Dining, Stay, Wellness" value={editing.category}
+                onChange={e=>setEditing(v=>({...v,category:e.target.value}))}/>
+            </div>
+            <div>
+              <label className="lbl">Status</label>
+              <select className="inp" value={editing.active?"active":"inactive"}
+                onChange={e=>setEditing(v=>({...v,active:e.target.value==="active"}))}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          {editErr&&<div style={{color:"#f87171",fontSize:13,marginBottom:12,background:"#2a0d0d",borderRadius:8,padding:"8px 12px"}}>{editErr}</div>}
+          <div style={{display:"flex",gap:10}}>
+            <button className="btn" onClick={saveEdit} disabled={saving||imgLoading}
+              style={{opacity:saving||imgLoading?0.6:1}}>
+              {saving?"Saving…":"💾 Save Reward"}
+            </button>
+            <button className="btn-g" onClick={()=>{setEditing(null);setEditErr("");}}>Cancel</button>
+          </div>
+        </div>}
+
+        {/* Reward list */}
+        {rewards.map(r=>(
+          <div key={r.id} className="card" style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:14,opacity:r.active===false?0.5:1}}>
+            <RewardThumb reward={r} size={52} radius={10}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                <span style={{fontWeight:700,color:"#ccd",fontSize:14}}>{r.name}</span>
+                {r.category&&<span style={{fontSize:10,color:"#5566aa",background:"#0e1420",padding:"2px 8px",borderRadius:99,border:"1px solid #1e2535"}}>{r.category}</span>}
+                {r.active===false&&<span style={{fontSize:10,color:"#886644",background:"#1a1008",padding:"2px 8px",borderRadius:99,border:"1px solid #2a2010"}}>Inactive</span>}
+                {r.image&&<span style={{fontSize:10,color:"#4ade80",background:"#0d2a1a",padding:"2px 8px",borderRadius:99,border:"1px solid #1a4a2a"}}>📷 Has image</span>}
+              </div>
+              <div style={{fontSize:13,color:"#f59e0b",fontWeight:700}}>{r.pts.toLocaleString()} pts</div>
+            </div>
+            <div style={{display:"flex",gap:8,flexShrink:0}}>
+              <button className="btn-g" onClick={()=>toggleActive(r.id)} style={{fontSize:11,padding:"6px 12px"}}>
+                {r.active===false?"Enable":"Disable"}
+              </button>
+              <button className="btn-g" onClick={()=>startEdit(r)} style={{fontSize:11,padding:"6px 12px"}}>✏️ Edit</button>
+              {rewards.length>1&&<button className="btn-d" onClick={()=>deleteReward(r.id)} style={{fontSize:11,padding:"6px 12px"}}>✕</button>}
+            </div>
+          </div>
+        ))}
+        <button className="btn-g" onClick={startNew} style={{alignSelf:"flex-start",padding:"10px 20px"}}>⊕ Add New Reward</button>
+      </div>}
+
+      {/* ── REDEEM FOR MEMBER ── */}
+      {tab==="redeem"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">Select Member</label>
+            <select className="inp" value={sel} onChange={e=>{setSel(e.target.value);setSelReward(null);setConfirm(false);}}>
+              <option value="">— Choose member —</option>
+              {members.map(m=>{const t=getTier(m.points,tiers);return<option key={m.id} value={m.id}>{m.name} · {t.name} · {m.points.toLocaleString()} pts</option>;})}
+            </select>
+            {member&&<div style={{marginTop:12,background:"#0a1020",borderRadius:10,padding:"12px 16px",border:"1px solid #1a2535",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{member.name}</div>
+                <div style={{color:"#6677aa",fontSize:12,marginTop:2}}>{member.phone}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <TierBadge tier={tier}/>
+                <div style={{fontSize:14,color:"#f59e0b",fontWeight:800,marginTop:4}}>{member.points.toLocaleString()} pts</div>
+              </div>
+            </div>}
+          </div>
+
+          {member&&<div className="card" style={{padding:"22px 24px"}}>
+            <label className="lbl">Select Reward</label>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",margin:"8px 0 14px"}}>
+              {cats.map(c=><button key={c} onClick={()=>setCatFilter(c)}
+                style={{padding:"5px 12px",borderRadius:99,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",
+                  background:catFilter===c?"linear-gradient(135deg,#f59e0b,#f97316)":"#0a0f1a",
+                  color:catFilter===c?"#000":"#6677aa",transition:"all .15s"}}>
+                {c}
+              </button>)}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:320,overflowY:"auto"}}>
+              {filtered.length===0&&<div style={{color:"#2a3a55",fontSize:13,textAlign:"center",padding:"20px 0"}}>No active rewards in this category.</div>}
+              {filtered.map(r=>{
+                const canAfford=member.points>=r.pts;
+                const isSel=selReward?.id===r.id;
+                return(
+                  <button key={r.id} onClick={()=>{if(canAfford){setSelReward(isSel?null:r);setConfirm(false);}}}
+                    style={{padding:"10px 12px",borderRadius:10,textAlign:"left",
+                      border:`1px solid ${isSel?"#f59e0b44":canAfford?"#1e2535":"#1a1a1a"}`,
+                      background:isSel?"#1a1800":canAfford?"#0a0f1a":"#08080a",
+                      cursor:canAfford?"pointer":"not-allowed",opacity:canAfford?1:0.4,transition:"all .15s"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <RewardThumb reward={r} size={40} radius={8}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:600,color:isSel?"#f5c842":"#ccd",fontSize:13}}>{r.name}</div>
+                        {r.category&&<div style={{fontSize:10,color:"#445566",marginTop:1}}>{r.category}</div>}
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontWeight:800,color:canAfford?"#f59e0b":"#445566",fontSize:14}}>{r.pts.toLocaleString()}</div>
+                        <div style={{fontSize:9,color:"#445566",letterSpacing:.5}}>PTS</div>
+                      </div>
+                    </div>
+                    {!canAfford&&<div style={{fontSize:10,color:"#5a3a1a",marginTop:4}}>Insufficient balance ({(r.pts-member.points).toLocaleString()} pts short)</div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>}
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          {member&&selReward&&<div className="card" style={{padding:"24px 26px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#f59e0b",letterSpacing:.8,textTransform:"uppercase",marginBottom:16}}>Redemption Summary</div>
+            <div style={{textAlign:"center",marginBottom:20,background:"#0a0f1a",borderRadius:12,border:"1px solid #1e2535",overflow:"hidden"}}>
+              {selReward.image
+                ?<img src={selReward.image} alt={selReward.name} style={{width:"100%",maxHeight:160,objectFit:"cover"}}/>
+                :<div style={{padding:"28px 20px",fontSize:52}}>{selReward.icon||"🎁"}</div>}
+              <div style={{padding:"14px 20px"}}>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#e8eaf0",fontWeight:700}}>{selReward.name}</div>
+                {selReward.category&&<div style={{fontSize:11,color:"#5566aa",marginTop:4}}>{selReward.category}</div>}
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+              {[
+                {l:"Member",v:member.name,vc:"#ccd"},
+                {l:"Current Balance",v:member.points.toLocaleString()+" pts",vc:"#f59e0b"},
+                {l:"Redemption Cost",v:"−"+selReward.pts.toLocaleString()+" pts",vc:"#f87171"},
+              ].map(row=>(
+                <div key={row.l} style={{display:"flex",justifyContent:"space-between"}}>
+                  <span style={{color:"#5566aa",fontSize:13}}>{row.l}</span>
+                  <span style={{color:row.vc,fontWeight:600,fontSize:13}}>{row.v}</span>
+                </div>
+              ))}
+              <div style={{borderTop:"1px solid #1e2535",paddingTop:10,display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"#5566aa",fontSize:13}}>Remaining Balance</span>
+                <span style={{color:"#4ade80",fontWeight:800,fontSize:16}}>{(member.points-selReward.pts).toLocaleString()} pts</span>
+              </div>
+            </div>
+            {!confirm
+              ?<button className="btn" onClick={()=>setConfirm(true)} style={{width:"100%",background:"linear-gradient(135deg,#f59e0b,#f97316)"}}>
+                🎁 Confirm Redemption
+              </button>
+              :<div style={{background:"#0d1a0d",border:"1px solid #1a4a1a",borderRadius:12,padding:"16px 18px"}}>
+                <div style={{color:"#4ade80",fontWeight:700,fontSize:14,marginBottom:8}}>✓ Confirm Redemption</div>
+                <div style={{color:"#6a9a6a",fontSize:13,marginBottom:14,lineHeight:1.6}}>
+                  Redeem <strong style={{color:"#86efac"}}>{selReward.name}</strong> for <strong style={{color:"#86efac"}}>{member.name}</strong>?<br/>
+                  <strong style={{color:"#f87171"}}>{selReward.pts.toLocaleString()} pts</strong> will be deducted.
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button className="btn" onClick={doRedeem} style={{flex:1,background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>✓ Yes, Redeem</button>
+                  <button className="btn-g" onClick={()=>setConfirm(false)} style={{flex:1}}>Cancel</button>
+                </div>
+              </div>
+            }
+          </div>}
+          {member&&!selReward&&<div className="card" style={{padding:"28px",textAlign:"center"}}>
+            <div style={{fontSize:40,marginBottom:12,opacity:.3}}>🎁</div>
+            <div style={{color:"#2a3a55",fontSize:13}}>Select a reward from the left to proceed</div>
+          </div>}
+          {!member&&<div className="card" style={{padding:"28px",textAlign:"center"}}>
+            <div style={{fontSize:40,marginBottom:12,opacity:.3}}>👤</div>
+            <div style={{color:"#2a3a55",fontSize:13}}>Select a member to see available rewards</div>
+          </div>}
+        </div>
+      </div>}
+    </div>
+  );
+}){
   const {members,tiers,rewards=[],setRewards,setMembers,showToast}=ctx;
   const [tab,setTab]=useState("redeem"); // redeem | manage
 
