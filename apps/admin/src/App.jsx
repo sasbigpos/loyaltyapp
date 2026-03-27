@@ -829,6 +829,19 @@ function Profile({ctx,memberId,onBack}){
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
+
+// ─── REWARD THUMBNAIL ─────────────────────────────────────────────────────────
+function RewardThumb({reward,size=48,radius=10}){
+  return(
+    <div style={{width:size,height:size,borderRadius:radius,flexShrink:0,overflow:"hidden",
+      background:"#0a0f1a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      {reward.image
+        ?<img src={reward.image} alt={reward.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+        :<span style={{fontSize:size*0.5}}>{reward.icon||"🎁"}</span>}
+    </div>
+  );
+}
+
 // ─── REDEEM REWARDS ──────────────────────────────────────────────────────────
 function RedeemRewards({ctx}){
   const {members,tiers,rewards=[],setRewards,setMembers,showToast}=ctx;
@@ -920,16 +933,6 @@ function RedeemRewards({ctx}){
   const activeRewards=rewards.filter(r=>r.active!==false);
   const cats=["All",...new Set(activeRewards.map(r=>r.category).filter(Boolean))];
   const filtered=catFilter==="All"?activeRewards:activeRewards.filter(r=>r.category===catFilter);
-
-  // Shared reward thumbnail component
-  const RewardThumb=({reward,size=48,radius=10})=>(
-    <div style={{width:size,height:size,borderRadius:radius,flexShrink:0,overflow:"hidden",
-      background:"#0a0f1a",display:"flex",alignItems:"center",justifyContent:"center"}}>
-      {reward.image
-        ?<img src={reward.image} alt={reward.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-        :<span style={{fontSize:size*0.5}}>{reward.icon||"🎁"}</span>}
-    </div>
-  );
 
   return(
     <div className="fi" style={{maxWidth:720}}>
