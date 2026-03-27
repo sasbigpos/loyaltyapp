@@ -9,7 +9,7 @@ async function getSubscriber() {
 }
 
 // ─── STORAGE KEYS (must match Admin app exactly) ──────────────────────────────
-const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels" };
+const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", rewards:"lc:rewards" };
 
 const DEFAULT_TIERS = [
   { id:"bronze",   name:"Bronze",   minPoints:0,    color:"#cd7f32", bg:"#2a1a0e", icon:"🥉", multiplier:1.0  },
@@ -47,17 +47,19 @@ function getDownline(members,rootId,maxDepth){
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
 async function loadAll(){
   try{
-    const [mr,tr,rr]=await Promise.all([
+    const [mr,tr,rr,rwR]=await Promise.all([
       window.storage.get(KEYS.members,  true).catch(()=>null),
       window.storage.get(KEYS.tiers,    true).catch(()=>null),
       window.storage.get(KEYS.refLevels,true).catch(()=>null),
+      window.storage.get(KEYS.rewards,  true).catch(()=>null),
     ]);
     return {
       members:   mr?JSON.parse(mr.value):null,
       tiers:     tr?JSON.parse(tr.value):DEFAULT_TIERS,
       refLevels: rr?JSON.parse(rr.value):DEFAULT_REF,
+      rewards:   rwR?JSON.parse(rwR.value):null,
     };
-  }catch{return{members:null,tiers:DEFAULT_TIERS,refLevels:DEFAULT_REF};}
+  }catch{return{members:null,tiers:DEFAULT_TIERS,refLevels:DEFAULT_REF,rewards:null};}
 }
 async function saveMembers(members){try{await window.storage.set(KEYS.members,JSON.stringify(members),true);}catch(e){console.error(e);}}
 
@@ -108,16 +110,18 @@ export default function MemberApp(){
     const bootstrap = async () => {
       // 1. One-shot initial load — use defaults if Firestore is empty
       try {
-        const [mr,tr,rr]=await Promise.all([
+        const [mr,tr,rr,rwR]=await Promise.all([
           window.storage.get(KEYS.members,  true).catch(()=>null),
           window.storage.get(KEYS.tiers,    true).catch(()=>null),
           window.storage.get(KEYS.refLevels,true).catch(()=>null),
+          window.storage.get(KEYS.rewards,  true).catch(()=>null),
         ]);
         // If Firestore has data, use it; otherwise fall back to defaults
         // (Admin app will seed Firestore on its first run)
         setMembersState(mr ? JSON.parse(mr.value) : []);
         if(tr) setTiers(JSON.parse(tr.value));
         if(rr) setRefLevels(JSON.parse(rr.value));
+        if(rwR) setRewards(JSON.parse(rwR.value));
       } catch {}
       setLoading(false); setLastSync(new Date());
 
@@ -142,7 +146,7 @@ export default function MemberApp(){
   if(loading) return(
     <div style={{minHeight:"100vh",background:"#f7f2eb",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,color:"#2a1a0a",marginBottom:16}}>B LOYALTY</div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,color:"#10b981",marginBottom:16}}>B LOYALTY</div>
         <div style={{width:32,height:32,border:"3px solid #e0d4c0",borderTop:"3px solid #f5c842",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
         <div style={{color:"#9a8a7a",fontSize:13,marginTop:16,fontFamily:"'DM Sans',sans-serif"}}>Loading your membership…</div>
       </div>
@@ -176,7 +180,7 @@ export default function MemberApp(){
         {screen==="login"
           ? <LoginScreen members={members} tiers={tiers} onLogin={id=>{setMemberId(id);setScreen("portal");}}/>
           : member
-            ? <Portal key={memberId} member={member} members={members} tiers={tiers} refLevels={refLevels} setMembers={setMembers} showNotif={showNotif} syncing={syncing} lastSync={lastSync} onLogout={()=>{setMemberId(null);setScreen("login");}}/>
+            ? <Portal key={memberId} member={member} members={members} tiers={tiers} refLevels={refLevels} rewards={rewards} setMembers={setMembers} showNotif={showNotif} syncing={syncing} lastSync={lastSync} onLogout={()=>{setMemberId(null);setScreen("login");}}/>
             : <div style={{padding:40,textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:"#9a8a7a"}}>Member not found.<br/><button onClick={()=>setScreen("login")} style={{marginTop:12,background:"#f5c842",color:"#1a1208",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Back to Login</button></div>
         }
       </div>
@@ -217,7 +221,7 @@ function LoginScreen({members,tiers,onLogin}){
 
   const Logo=(
     <div className="fu" style={{textAlign:"center",marginBottom:40}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:44,fontWeight:700,background:"linear-gradient(135deg,#f5c842,#f59e0b)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:-1,lineHeight:1}}>B LOYALTY</div>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:44,fontWeight:700,color:"#10b981",WebkitTextFillColor:"#10b981",letterSpacing:-1,lineHeight:1}}>B LOYALTY</div>
       <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#5a4a2a",letterSpacing:3,marginTop:6,textTransform:"uppercase"}}>Member Portal</div>
     </div>
   );
@@ -323,7 +327,7 @@ function LoginScreen({members,tiers,onLogin}){
 }
 
 // ─── PORTAL ───────────────────────────────────────────────────────────────────
-function Portal({member,members,tiers,refLevels,setMembers,showNotif,syncing,lastSync,onLogout}){
+function Portal({member,members,tiers,refLevels,rewards,setMembers,showNotif,syncing,lastSync,onLogout}){
   const [tab,setTab]=useState("home");
   const [redeeming,setRedeeming]=useState(null);
   const [redeemed,setRedeemed]=useState([]);
@@ -337,7 +341,7 @@ function Portal({member,members,tiers,refLevels,setMembers,showNotif,syncing,las
     setMembers(prev=>prev.map(m=>m.id===member.id?{...m,points:m.points-reward.pts,transactions:[{id:genId(),pts:-reward.pts,icon:reward.icon,label:`${reward.name} Redeemed`,date:today(),type:"redeem"},...m.transactions]}:m));
     setRedeemed(r=>[...r,reward.id]);
     setRedeeming(null);
-    showNotif(`${reward.icon} ${reward.name} redeemed!`);
+    showNotif(`${reward.icon||"🎁"} ${reward.name} redeemed!`);
   };
   const copyRef=()=>{setCopied(true);showNotif("Referral code copied!");setTimeout(()=>setCopied(false),2000);};
 
@@ -357,7 +361,7 @@ function Portal({member,members,tiers,refLevels,setMembers,showNotif,syncing,las
       <button onClick={onLogout} style={{position:"fixed",top:"max(12px, env(safe-area-inset-top))",left:12,background:"rgba(247,242,235,.9)",backdropFilter:"blur(8px)",border:"1px solid #e8ddd0",borderRadius:99,padding:"8px 14px",fontSize:11,fontWeight:600,color:"#9a8a7a",fontFamily:"'DM Sans',sans-serif",zIndex:200,minHeight:36}}>← Logout</button>
 
       {tab==="home"     && <HomeTab     member={member} tier={tier} nextTier={nextTier}/>}
-      {tab==="rewards"  && <RewardsTab  member={member} tier={tier} redeemed={redeemed} redeeming={redeeming} setRedeeming={setRedeeming} onRedeem={handleRedeem}/>}
+      {tab==="rewards"  && <RewardsTab  member={member} tier={tier} rewards={rewards} redeemed={redeemed} redeeming={redeeming} setRedeeming={setRedeeming} onRedeem={handleRedeem}/>}
       {tab==="referral" && <ReferralTab member={member} members={members} refLevels={refLevels} downline={downline} copied={copied} onCopy={copyRef}/>}
       {tab==="history"  && <HistoryTab  member={member} tier={tier}/>}
       {tab==="profile"  && <ProfileTab  member={member} tier={tier} nextTier={nextTier} tiers={tiers} members={members} refLevels={refLevels} downline={downline} setMembers={setMembers} onLogout={onLogout}/>}
@@ -378,7 +382,9 @@ function Portal({member,members,tiers,refLevels,setMembers,showNotif,syncing,las
         <div className="si" onClick={e=>e.stopPropagation()} style={{background:"#f7f2eb",borderRadius:"24px 24px 0 0",padding:"32px 26px 48px",width:"100%",maxWidth:430}}>
           <div style={{width:40,height:4,background:"#e0d4c8",borderRadius:99,margin:"0 auto 28px"}}/>
           <div style={{textAlign:"center",marginBottom:28}}>
-            <div style={{fontSize:56,marginBottom:12}}>{redeeming.icon}</div>
+            {redeeming.image
+              ?<img src={redeeming.image} alt={redeeming.name} style={{width:"100%",maxHeight:180,objectFit:"cover",borderRadius:14,marginBottom:12}}/>
+              :<div style={{fontSize:56,marginBottom:12}}>{redeeming.icon||"🎁"}</div>}
             <div className="serif" style={{fontSize:26,color:"#2a1a0a",fontWeight:600,marginBottom:6}}>{redeeming.name}</div>
             <div className="sans" style={{fontSize:13,color:"#9a8a7a"}}>Deducts {redeeming.pts.toLocaleString()} points</div>
           </div>
@@ -454,10 +460,11 @@ function HomeTab({member,tier,nextTier}){
 }
 
 // ─── REWARDS TAB ─────────────────────────────────────────────────────────────
-function RewardsTab({member,tier,redeemed,redeeming,setRedeeming,onRedeem}){
+function RewardsTab({member,tier,rewards=[],redeemed,redeeming,setRedeeming,onRedeem}){
   const [filter,setFilter]=useState("All");
-  const cats=["All","Dining","Stay","Wellness","Travel"];
-  const filtered=filter==="All"?REWARDS_CATALOG:REWARDS_CATALOG.filter(r=>r.category===filter);
+  const activeRewards=rewards.filter(r=>r.active!==false);
+  const cats=["All",...new Set(activeRewards.map(r=>r.category).filter(Boolean))];
+  const filtered=filter==="All"?activeRewards:activeRewards.filter(r=>r.category===filter);
   return <div>
     <div style={{padding:"max(60px,calc(44px + env(safe-area-inset-top))) 20px 20px",background:"linear-gradient(160deg,#1a1208,#2a1f0e)"}}>
       <div className="sans fu" style={{fontSize:11,color:"#8a7a5a",letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Balance</div>
@@ -472,7 +479,9 @@ function RewardsTab({member,tier,redeemed,redeeming,setRedeeming,onRedeem}){
           const can=member.points>=r.pts;const done=redeemed.includes(r.id);
           return <div key={r.id} className="mem-reward fu" onClick={()=>!done&&can&&setRedeeming(r)} style={{background:done?"#f0fdf4":"#fff8f0",border:`1px solid ${done?"#86efac":can?"#e8ddd0":"#ede8e0"}`,borderRadius:18,padding:"20px 16px",cursor:done||!can?"default":"pointer",opacity:!can&&!done?.6:1,position:"relative",overflow:"hidden",animationDelay:`${i*.06}s`}}>
             {done&&<div style={{position:"absolute",top:10,right:10}}><span className="sans" style={{fontSize:9,background:"#16a34a",color:"#fff",padding:"2px 7px",borderRadius:99,fontWeight:700}}>DONE</span></div>}
-            <div style={{fontSize:32,marginBottom:10}}>{r.icon}</div>
+            {r.image
+              ?<img src={r.image} alt={r.name} style={{width:"100%",height:120,objectFit:"cover",borderRadius:10,marginBottom:10}}/>
+              :<div style={{fontSize:32,marginBottom:10}}>{r.icon||"🎁"}</div>}
             <div className="serif" style={{fontSize:16,color:"#2a1a0a",fontWeight:600,marginBottom:4}}>{r.name}</div>
             <div className="sans" style={{fontSize:10,color:"#9a8a7a",marginBottom:10}}>{r.category}</div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
