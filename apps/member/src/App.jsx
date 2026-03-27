@@ -84,6 +84,7 @@ export default function MemberApp(){
   const [members,   setMembersState] = useState([]);
   const [tiers,     setTiers]        = useState(DEFAULT_TIERS);
   const [refLevels, setRefLevels]    = useState(DEFAULT_REF);
+  const [rewards,   setRewards]      = useState(REWARDS_CATALOG);
   const [screen,    setScreen]       = useState("login"); // login | portal
   const [memberId,  setMemberId]     = useState(null);
   const [loading,   setLoading]      = useState(true);
@@ -133,6 +134,7 @@ export default function MemberApp(){
           sub(KEYS.members,   v => { setMembersState(JSON.parse(v)); setLastSync(new Date()); }),
           sub(KEYS.tiers,     v => setTiers(JSON.parse(v))),
           sub(KEYS.refLevels, v => setRefLevels(JSON.parse(v))),
+          sub(KEYS.rewards,   v => setRewards(JSON.parse(v))),
         ];
       }
     };
