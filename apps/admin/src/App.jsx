@@ -71,7 +71,7 @@ function getDownline(members,rootId,maxDepth){
 
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
 const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw", waTemplates:"lc:waTemplates", config:"lc:config", rewards:"lc:rewards", merchants:"lc:merchants" };
-const DEFAULT_CONFIG = { welcomeEnabled:true, welcomePts:100, locationCodes:[] };
+const DEFAULT_CONFIG = { welcomeEnabled:true, welcomePts:100 };
 const DEFAULT_REWARDS = [
   { id:"rw1", name:"Free Dessert",     pts:200,  icon:"🍰", category:"Dining",   active:true },
   { id:"rw2", name:"Room Upgrade",     pts:500,  icon:"🏨", category:"Stay",     active:true },
@@ -235,13 +235,13 @@ export default function AdminApp() {
     });
   };
 
-  const enrollMember = (name,phone,referredBy,pin="0000",birthday="",locationCode="",merchantCode="") => {
+  const enrollMember = (name,phone,referredBy,pin="0000",birthday="",merchantCode="") => {
     const id=genId();
     const code=name.split(" ")[0].toUpperCase()+"-"+Math.floor(1000+Math.random()*9000);
     const welcomeOn=appConfig.welcomeEnabled!==false;
     const welcomePts=welcomeOn?(parseInt(appConfig.welcomePts)||100):0;
     const txns=welcomeOn?[{id:genId(),pts:welcomePts,icon:"⭐",label:"Welcome Bonus",date:today(),type:"earn"}]:[];
-    const newM={id,name,phone,pin,birthday,locationCode,merchantCode,points:welcomePts,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,transactions:txns};
+    const newM={id,name,phone,pin,birthday,merchantCode,points:welcomePts,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,transactions:txns};
     setMembers(prev=>[...prev,newM]);
     return newM;
   };
@@ -469,24 +469,21 @@ function Members({ctx,onSelect}){
 // ─── ENROLL ───────────────────────────────────────────────────────────────────
 function Enroll({ctx,onDone}){
   const {members,enrollMember,showToast,appConfig,merchants}=ctx;
-  const [form,setForm]=useState({name:"",phone:"",ref:"",pin:"",birthday:"",locationCode:"",merchantCode:""});
+  const [form,setForm]=useState({name:"",phone:"",ref:"",pin:"",birthday:"",merchantCode:""});
   const [err,setErr]=useState({});
   const submit=()=>{
     const e={};
     if(!form.name.trim())e.name="Name required";
     if(form.phone.replace(/\D/g,"").length<10)e.phone="Valid phone required";
     if(form.pin&&!/^\d{4}$/.test(form.pin))e.pin="PIN must be exactly 4 digits";
-    const codes=(ctx.appConfig?.locationCodes||[]);
-    if(codes.length>0&&!form.locationCode)e.locationCode="Location code is required.";
-    if(form.locationCode&&codes.length>0&&!codes.find(c=>c.code===form.locationCode))e.locationCode="Invalid location code.";
     if(merchants.length>0&&!form.merchantCode)e.merchantCode="Merchant code is required.";
     if(form.merchantCode&&merchants.length>0&&!merchants.find(m=>m.code===form.merchantCode))e.merchantCode="Invalid merchant code.";
     if(Object.keys(e).length){setErr(e);return;}
     const pin=form.pin||"0000";
-    const m=enrollMember(form.name.trim(),form.phone,form.ref||null,pin,form.birthday||"",form.locationCode,form.merchantCode);
+    const m=enrollMember(form.name.trim(),form.phone,form.ref||null,pin,form.birthday||"",form.merchantCode);
     const wMsg=ctx.appConfig?.welcomeEnabled!==false?` ${ctx.appConfig?.welcomePts||100} welcome pts awarded.`:" Enrolled with 0 pts.";
     showToast(`${m.name} enrolled! PIN: ${pin}.${wMsg}`);
-    setForm({name:"",phone:"",ref:"",pin:"",birthday:"",locationCode:"",merchantCode:""});setErr({});
+    setForm({name:"",phone:"",ref:"",pin:"",birthday:"",merchantCode:""});setErr({});
   };
   return <div className="fi" style={{maxWidth:520}}>
     <div style={{marginBottom:28}}>
@@ -504,14 +501,7 @@ function Enroll({ctx,onDone}){
         <input className="inp" placeholder="012-3456-789" value={form.phone} onChange={e=>setForm(f=>({...f,phone:fmtPhone(e.target.value)}))}/>
         {err.phone&&<div style={{color:"#ff6b6b",fontSize:12,marginTop:5}}>{err.phone}</div>}
       </div>
-      {(ctx.appConfig?.locationCodes||[]).length>0&&<div>
-        <label className="lbl">Location Code *</label>
-        <select className="inp" value={form.locationCode} onChange={e=>setForm(f=>({...f,locationCode:e.target.value}))}>
-          <option value="">— Select Location —</option>
-          {(ctx.appConfig?.locationCodes||[]).map(c=><option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
-        </select>
-        {err.locationCode&&<div style={{color:"#ff6b6b",fontSize:12,marginTop:5}}>{err.locationCode}</div>}
-      </div>}
+
       {merchants.length>0&&<div>
         <label className="lbl">Merchant Code *</label>
         <select className="inp" value={form.merchantCode} onChange={e=>setForm(f=>({...f,merchantCode:e.target.value}))}>
@@ -775,7 +765,7 @@ function Profile({ctx,memberId,onBack}){
           <div><div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:"#e8eaf0"}}>{member.name}</div><TierBadge tier={tier}/></div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Date of Birth",v:member.birthday?fmtBirthday(member.birthday,"long")||"Not set":"Not set"},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Location",v:member.locationCode||"—"},{l:"Merchant",v:member.merchantCode||(()=>{return"—";})()},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
+          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Date of Birth",v:member.birthday?fmtBirthday(member.birthday,"long")||"Not set":"Not set"},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Merchant",v:member.merchantCode||(()=>{return"—";})()},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
             <div key={r.l} style={{display:"flex",justifyContent:"space-between"}}>
               <span style={{color:"#5566aa",fontSize:13}}>{r.l}</span>
               <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{r.v}</span>
@@ -1216,104 +1206,6 @@ function RedeemRewards({ctx}){
 
 
 
-// ─── LOCATION CONFIG ─────────────────────────────────────────────────────────
-function LocationConfig({appConfig,setAppConfig,showToast}){
-  const codes=appConfig.locationCodes||[];
-  const [newName,setNewName]=useState("");
-  const [newCode,setNewCode]=useState("");
-  const [err,setErr]=useState("");
-  const [saving,setSaving]=useState(false);
-
-  const save=async(next)=>{
-    setSaving(true);
-    try{
-      const updated={...appConfig,locationCodes:next};
-      await window.storage.set(KEYS.config,JSON.stringify(updated),true);
-      setAppConfig(updated);
-      showToast("Location codes saved!");
-    }catch(e){showToast("Failed to save","error");}
-    setSaving(false);
-  };
-
-  const addCode=async()=>{
-    setErr("");
-    if(!newName.trim()){setErr("Location name is required.");return;}
-    if(!newCode.trim()){setErr("Location code is required.");return;}
-    const code=newCode.trim().toUpperCase();
-    if(codes.find(c=>c.code===code)){setErr("This code already exists.");return;}
-    if(!/^[A-Z0-9]{2,10}$/.test(code)){setErr("Code must be 2–10 letters/numbers only.");return;}
-    await save([...codes,{code,name:newName.trim()}]);
-    setNewName("");setNewCode("");
-  };
-
-  const removeCode=async(code)=>{
-    await save(codes.filter(c=>c.code!==code));
-  };
-
-  return(
-    <div className="si card" style={{padding:"28px 30px",maxWidth:520,display:"flex",flexDirection:"column",gap:20}}>
-      <div>
-        <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Location Codes</div>
-        <div style={{fontSize:13,color:"#445566",lineHeight:1.6}}>
-          Create unique codes for each outlet or location. Members must enter a valid code when registering.
-          {codes.length===0&&<span style={{color:"#886644"}}> No codes yet — registration will not require a location code until you add one.</span>}
-        </div>
-      </div>
-
-      {/* Existing codes */}
-      {codes.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        <label className="lbl">Active Codes ({codes.length})</label>
-        {codes.map(c=>(
-          <div key={c.code} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
-            background:"#0a0f1a",borderRadius:10,border:"1px solid #1e2535"}}>
-            <div style={{width:56,textAlign:"center",fontWeight:800,fontSize:14,
-              color:"#10b981",background:"#0d2a1a",borderRadius:8,padding:"4px 8px",
-              letterSpacing:1,fontFamily:"monospace",flexShrink:0}}>
-              {c.code}
-            </div>
-            <div style={{flex:1,fontSize:13,color:"#ccd",fontWeight:500}}>{c.name}</div>
-            <button className="btn-d" onClick={()=>removeCode(c.code)}
-              style={{fontSize:11,padding:"5px 12px"}}>✕ Remove</button>
-          </div>
-        ))}
-      </div>}
-
-      {/* Add new code */}
-      <div>
-        <label className="lbl">Add New Location</label>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 120px auto",gap:10,marginTop:6,alignItems:"flex-end"}}>
-          <div>
-            <label className="lbl" style={{fontSize:10}}>Location Name</label>
-            <input className="inp" placeholder="e.g. Kuala Lumpur HQ" value={newName}
-              onChange={e=>{setNewName(e.target.value);setErr("");}}
-              onKeyDown={e=>e.key==="Enter"&&addCode()}/>
-          </div>
-          <div>
-            <label className="lbl" style={{fontSize:10}}>Code</label>
-            <input className="inp" placeholder="e.g. KL01" value={newCode} maxLength={10}
-              onChange={e=>{setNewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""));setErr("");}}
-              onKeyDown={e=>e.key==="Enter"&&addCode()}
-              style={{fontFamily:"monospace",fontWeight:700,letterSpacing:1}}/>
-          </div>
-          <button className="btn" onClick={addCode} disabled={saving}
-            style={{whiteSpace:"nowrap",opacity:saving?0.6:1,height:44}}>
-            {saving?"…":"⊕ Add"}
-          </button>
-        </div>
-        {err&&<div style={{color:"#f87171",fontSize:12,marginTop:8,background:"#2a0d0d",
-          borderRadius:8,padding:"8px 12px"}}>{err}</div>}
-      </div>
-
-      <div style={{borderTop:"1px solid #1a2030",paddingTop:16,fontSize:12,color:"#2a3a55",lineHeight:1.8}}>
-        <div style={{fontWeight:600,color:"#3a4a66",marginBottom:6}}>How it works:</div>
-        <div>• Each location gets a unique alphanumeric code (e.g. <span style={{color:"#10b981",fontFamily:"monospace"}}>KL01</span>, <span style={{color:"#10b981",fontFamily:"monospace"}}>PG02</span>)</div>
-        <div style={{marginTop:4}}>• Admin selects the location when enrolling a new member</div>
-        <div style={{marginTop:4}}>• The location code is stored on the member record and shown in their profile</div>
-        <div style={{marginTop:4}}>• If no codes are configured, the location field is hidden from the enroll form</div>
-      </div>
-    </div>
-  );
-}
 
 // ─── WELCOME CONFIG ──────────────────────────────────────────────────────────
 function WelcomeConfig({appConfig,setAppConfig,showToast}){
@@ -1415,12 +1307,12 @@ function Config({ctx}){
       <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-      {["tiers","referral","welcome","locations","password"].map(t=>(
+      {["tiers","referral","welcome","password"].map(t=>(
         <button key={t} onClick={()=>setTab(t)}
           style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
             background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
             color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":t==="locations"?"📍 Location Codes":"🔑 Admin Password"}
+          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":"🔑 Admin Password"}
         </button>
       ))}
     </div>
@@ -1455,7 +1347,7 @@ function Config({ctx}){
       </div>
     </div>}
     {tab==="welcome"&&<WelcomeConfig appConfig={appConfig} setAppConfig={setAppConfig} showToast={showToast}/>}
-    {tab==="locations"&&<LocationConfig appConfig={appConfig} setAppConfig={setAppConfig} showToast={showToast}/>}
+
     {tab==="password"&&<div className="si card" style={{padding:"28px 30px",maxWidth:460,display:"flex",flexDirection:"column",gap:20}}>
       <div>
         <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Change Admin Password</div>
