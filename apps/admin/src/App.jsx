@@ -70,7 +70,7 @@ function getDownline(members,rootId,maxDepth){
 }
 
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
-const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw", waTemplates:"lc:waTemplates", config:"lc:config", rewards:"lc:rewards" };
+const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", adminPw:"lc:adminPw", waTemplates:"lc:waTemplates", config:"lc:config", rewards:"lc:rewards", merchants:"lc:merchants" };
 const DEFAULT_CONFIG = { welcomeEnabled:true, welcomePts:100, locationCodes:[] };
 const DEFAULT_REWARDS = [
   { id:"rw1", name:"Free Dessert",     pts:200,  icon:"🍰", category:"Dining",   active:true },
@@ -126,6 +126,7 @@ export default function AdminApp() {
   const [waTemplates,setWaTemplates]   = useState(null);
   const [appConfig,  setAppConfig]     = useState(DEFAULT_CONFIG);
   const [rewards,    setRewards]       = useState(DEFAULT_REWARDS);
+  const [merchants,  setMerchants]     = useState([]);
   const [pwReady,   setPwReady]        = useState(false);
   const [members,   setMembersState]   = useState(SEED_MEMBERS);
   const [tiers,     setTiersState]     = useState(DEFAULT_TIERS);
@@ -155,7 +156,7 @@ export default function AdminApp() {
           window.storage.get(key, true).catch(()=>null),
           timeout(2000).then(()=>null)
         ]);
-        const [mr,tr,rr,pr,wr,cr,rwR] = await Promise.all([
+        const [mr,tr,rr,pr,wr,cr,rwR,mchR] = await Promise.all([
           safeGet(KEYS.members),
           safeGet(KEYS.tiers),
           safeGet(KEYS.refLevels),
@@ -163,11 +164,13 @@ export default function AdminApp() {
           safeGet(KEYS.waTemplates),
           safeGet(KEYS.config),
           safeGet(KEYS.rewards),
+          safeGet(KEYS.merchants),
         ]);
         if(pr) setAdminPw(pr.value);
         if(wr) setWaTemplates(JSON.parse(wr.value));
         if(cr) setAppConfig(JSON.parse(cr.value));
         if(rwR) setRewards(JSON.parse(rwR.value));
+        if(mchR) setMerchants(JSON.parse(mchR.value));
         setPwReady(true);
         const members   = mr ? JSON.parse(mr.value) : SEED_MEMBERS;
         const tiers     = tr ? JSON.parse(tr.value) : DEFAULT_TIERS;
@@ -232,13 +235,13 @@ export default function AdminApp() {
     });
   };
 
-  const enrollMember = (name,phone,referredBy,pin="0000",birthday="",locationCode="") => {
+  const enrollMember = (name,phone,referredBy,pin="0000",birthday="",locationCode="",merchantCode="") => {
     const id=genId();
     const code=name.split(" ")[0].toUpperCase()+"-"+Math.floor(1000+Math.random()*9000);
     const welcomeOn=appConfig.welcomeEnabled!==false;
     const welcomePts=welcomeOn?(parseInt(appConfig.welcomePts)||100):0;
     const txns=welcomeOn?[{id:genId(),pts:welcomePts,icon:"⭐",label:"Welcome Bonus",date:today(),type:"earn"}]:[];
-    const newM={id,name,phone,pin,birthday,locationCode,points:welcomePts,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,transactions:txns};
+    const newM={id,name,phone,pin,birthday,locationCode,merchantCode,points:welcomePts,referredBy:referredBy||null,joinedAt:new Date().toISOString().slice(0,10),referralCode:code,transactions:txns};
     setMembers(prev=>[...prev,newM]);
     return newM;
   };
@@ -263,7 +266,7 @@ export default function AdminApp() {
     </div>
   );
 
-  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards};
+  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards,merchants,setMerchants};
 
   return (
     <div style={{minHeight:"100vh",background:"#080c12",color:"#e8eaf0",fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex"}}>
@@ -304,7 +307,7 @@ export default function AdminApp() {
           </div>
           <div style={{fontSize:9,color:"#2a3a4a",letterSpacing:2,textTransform:"uppercase"}}>Admin Portal</div>
         </div>
-        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"redeem",icon:"🎁",label:"Redeem Rewards"},{id:"history",icon:"◷",label:"All Transactions"},{id:"whatsapp",icon:"💬",label:"WhatsApp Blast"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
+        {[{id:"dashboard",icon:"◈",label:"Dashboard"},{id:"members",icon:"◉",label:"Members"},{id:"enroll",icon:"⊕",label:"Enroll Member"},{id:"points",icon:"◆",label:"Award Points"},{id:"redeem",icon:"🎁",label:"Redeem Rewards"},{id:"history",icon:"◷",label:"All Transactions"},{id:"merchants",icon:"🏪",label:"Merchants"},{id:"whatsapp",icon:"💬",label:"WhatsApp Blast"},{id:"config",icon:"◎",label:"Configuration"}].map(n=>(
           <div key={n.id} className={`nav${view===n.id?" on":""}`} onClick={()=>{setView(n.id);setSelId(null);}}>
             <span style={{fontSize:16}}>{n.icon}</span>{n.label}
           </div>
@@ -330,6 +333,7 @@ export default function AdminApp() {
         {view==="whatsapp"  && <WhatsAppBlast ctx={ctx}/>}
         {view==="redeem"    && <RedeemRewards ctx={ctx}/>}
         {view==="history"   && <AllTransactions ctx={ctx} onSelect={id=>{setSelId(id);setView("profile");}}/>}
+        {view==="merchants"  && <MerchantsPage ctx={ctx}/>}
         {view==="profile"   && selId && <Profile ctx={ctx} memberId={selId} onBack={()=>setView("members")}/>}
       </div>
 
@@ -464,8 +468,8 @@ function Members({ctx,onSelect}){
 
 // ─── ENROLL ───────────────────────────────────────────────────────────────────
 function Enroll({ctx,onDone}){
-  const {members,enrollMember,showToast,appConfig}=ctx;
-  const [form,setForm]=useState({name:"",phone:"",ref:"",pin:"",birthday:"",locationCode:""});
+  const {members,enrollMember,showToast,appConfig,merchants}=ctx;
+  const [form,setForm]=useState({name:"",phone:"",ref:"",pin:"",birthday:"",locationCode:"",merchantCode:""});
   const [err,setErr]=useState({});
   const submit=()=>{
     const e={};
@@ -475,12 +479,14 @@ function Enroll({ctx,onDone}){
     const codes=(ctx.appConfig?.locationCodes||[]);
     if(codes.length>0&&!form.locationCode)e.locationCode="Location code is required.";
     if(form.locationCode&&codes.length>0&&!codes.find(c=>c.code===form.locationCode))e.locationCode="Invalid location code.";
+    if(merchants.length>0&&!form.merchantCode)e.merchantCode="Merchant code is required.";
+    if(form.merchantCode&&merchants.length>0&&!merchants.find(m=>m.code===form.merchantCode))e.merchantCode="Invalid merchant code.";
     if(Object.keys(e).length){setErr(e);return;}
     const pin=form.pin||"0000";
-    const m=enrollMember(form.name.trim(),form.phone,form.ref||null,pin,form.birthday||"",form.locationCode);
+    const m=enrollMember(form.name.trim(),form.phone,form.ref||null,pin,form.birthday||"",form.locationCode,form.merchantCode);
     const wMsg=ctx.appConfig?.welcomeEnabled!==false?` ${ctx.appConfig?.welcomePts||100} welcome pts awarded.`:" Enrolled with 0 pts.";
     showToast(`${m.name} enrolled! PIN: ${pin}.${wMsg}`);
-    setForm({name:"",phone:"",ref:"",pin:"",birthday:"",locationCode:""});setErr({});
+    setForm({name:"",phone:"",ref:"",pin:"",birthday:"",locationCode:"",merchantCode:""});setErr({});
   };
   return <div className="fi" style={{maxWidth:520}}>
     <div style={{marginBottom:28}}>
@@ -505,6 +511,14 @@ function Enroll({ctx,onDone}){
           {(ctx.appConfig?.locationCodes||[]).map(c=><option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
         </select>
         {err.locationCode&&<div style={{color:"#ff6b6b",fontSize:12,marginTop:5}}>{err.locationCode}</div>}
+      </div>}
+      {merchants.length>0&&<div>
+        <label className="lbl">Merchant Code *</label>
+        <select className="inp" value={form.merchantCode} onChange={e=>setForm(f=>({...f,merchantCode:e.target.value}))}>
+          <option value="">— Select Merchant —</option>
+          {merchants.filter(m=>m.active!==false).map(m=><option key={m.code} value={m.code}>{m.name} ({m.code})</option>)}
+        </select>
+        {err.merchantCode&&<div style={{color:"#ff6b6b",fontSize:12,marginTop:5}}>{err.merchantCode}</div>}
       </div>}
       <div>
         <label className="lbl">Referred By</label>
@@ -761,7 +775,7 @@ function Profile({ctx,memberId,onBack}){
           <div><div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:"#e8eaf0"}}>{member.name}</div><TierBadge tier={tier}/></div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Date of Birth",v:member.birthday?fmtBirthday(member.birthday,"long")||"Not set":"Not set"},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Location",v:member.locationCode||"—"},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
+          {[{l:"Phone",v:member.phone},{l:"Member ID",v:member.id},{l:"Date of Birth",v:member.birthday?fmtBirthday(member.birthday,"long")||"Not set":"Not set"},{l:"Joined",v:member.joinedAt},{l:"Referral Code",v:member.referralCode||"—"},{l:"Location",v:member.locationCode||"—"},{l:"Merchant",v:member.merchantCode||(()=>{return"—";})()},{l:"Referred By",v:referrer?referrer.name:"—"},{l:"Member PIN",v:member.pin||"0000"}].map(r=>(
             <div key={r.l} style={{display:"flex",justifyContent:"space-between"}}>
               <span style={{color:"#5566aa",fontSize:13}}>{r.l}</span>
               <span style={{color:"#ccd",fontSize:13,fontWeight:500}}>{r.v}</span>
@@ -2003,6 +2017,264 @@ function AllTransactions({ctx,onSelect}){
           style={{padding:"6px 14px",fontSize:12,opacity:safePage===totalPages?0.4:1}}>Next →</button>
         <button className="btn-g" onClick={()=>setPage(totalPages)} disabled={safePage===totalPages}
           style={{padding:"6px 12px",fontSize:12,opacity:safePage===totalPages?0.4:1}}>»</button>
+      </div>}
+    </div>
+  );
+}
+
+// ─── MERCHANTS PAGE ───────────────────────────────────────────────────────────
+function MerchantsPage({ctx}){
+  const {members,merchants,setMerchants,showToast}=ctx;
+  const [tab,setTab]=useState("setup"); // setup | report
+  const [newName,setNewName]=useState("");
+  const [newCode,setNewCode]=useState("");
+  const [newContact,setNewContact]=useState("");
+  const [newAddress,setNewAddress]=useState("");
+  const [editing,setEditing]=useState(null);
+  const [err,setErr]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  const saveMerchants=async(next)=>{
+    setSaving(true);
+    try{
+      await window.storage.set(KEYS.merchants,JSON.stringify(next),true);
+      setMerchants(next);
+      showToast("Merchants saved!");
+    }catch(e){showToast("Failed to save","error");}
+    setSaving(false);
+  };
+
+  const addMerchant=async()=>{
+    setErr("");
+    if(!newName.trim()){setErr("Merchant name is required.");return;}
+    if(!newCode.trim()){setErr("Merchant code is required.");return;}
+    const code=newCode.trim().toUpperCase();
+    if(merchants.find(m=>m.code===code)){setErr("This code already exists.");return;}
+    if(!/^[A-Z0-9]{2,10}$/.test(code)){setErr("Code must be 2–10 letters/numbers only.");return;}
+    const newM={id:genId(),code,name:newName.trim(),contact:newContact.trim(),address:newAddress.trim(),active:true,joinedAt:today()};
+    await saveMerchants([...merchants,newM]);
+    setNewName("");setNewCode("");setNewContact("");setNewAddress("");
+  };
+
+  const toggleActive=(id)=>saveMerchants(merchants.map(m=>m.id===id?{...m,active:!m.active}:m));
+  const deleteMerchant=(id)=>saveMerchants(merchants.filter(m=>m.id!==id));
+
+  const saveEdit=async()=>{
+    if(!editing.name.trim()){setErr("Name required.");return;}
+    setErr("");
+    await saveMerchants(merchants.map(m=>m.id===editing.id?{...m,...editing}:m));
+    setEditing(null);
+  };
+
+  // Report data
+  const reportRows=merchants.map(m=>{
+    const mems=members.filter(mb=>mb.merchantCode===m.code);
+    const active=mems.filter(mb=>mb.points>0).length;
+    const totalPts=mems.reduce((s,mb)=>s+mb.points,0);
+    return{...m,count:mems.length,active,totalPts};
+  }).sort((a,b)=>b.count-a.count);
+
+  const totalRegistered=members.filter(m=>m.merchantCode).length;
+  const untracked=members.filter(m=>!m.merchantCode).length;
+
+  return(
+    <div className="fi">
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Merchants</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Manage merchant partners and track member registrations by merchant</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:22}}>
+        {[{id:"setup",label:"🏪 Merchant Setup"},{id:"report",label:"📊 Registration Report"}].map(t=>(
+          <button key={t.id} onClick={()=>{setTab(t.id);setEditing(null);setErr("");}}
+            style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
+              background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+              color:tab===t.id?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── SETUP TAB ── */}
+      {tab==="setup"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,alignItems:"start"}}>
+
+        {/* Add / Edit form */}
+        <div className="card" style={{padding:"24px 26px",display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{fontWeight:700,color:"#e8eaf0",fontSize:15}}>{editing?"✏️ Edit Merchant":"⊕ Add New Merchant"}</div>
+
+          {[
+            {key:"name",   label:"Merchant Name *",    placeholder:"e.g. Kedai Maju Sdn Bhd",  val:editing?editing.name:newName,   set:editing?(v)=>setEditing(e=>({...e,name:v})):(v)=>setNewName(v)},
+            {key:"code",   label:"Merchant Code *",    placeholder:"e.g. KM01",                val:editing?editing.code:newCode,   set:editing?(v)=>setEditing(e=>({...e,code:v.toUpperCase().replace(/[^A-Z0-9]/g,"")})):(v)=>setNewCode(v.toUpperCase().replace(/[^A-Z0-9]/g,"")),mono:true,disabled:!!editing},
+            {key:"contact",label:"Contact Person",     placeholder:"e.g. Ahmad 012-3456789",   val:editing?editing.contact:newContact, set:editing?(v)=>setEditing(e=>({...e,contact:v})):(v)=>setNewContact(v)},
+            {key:"address",label:"Address / Outlet",   placeholder:"e.g. No 1, Jalan Maju",    val:editing?editing.address:newAddress, set:editing?(v)=>setEditing(e=>({...e,address:v})):(v)=>setNewAddress(v)},
+          ].map(({key,label,placeholder,val,set,mono,disabled})=>(
+            <div key={key}>
+              <label className="lbl">{label}</label>
+              <input className="inp" placeholder={placeholder} value={val||""}
+                onChange={e=>set(e.target.value)} disabled={disabled}
+                style={{fontFamily:mono?"monospace":"inherit",fontWeight:mono?700:"normal",
+                  letterSpacing:mono?1:0,opacity:disabled?0.5:1}}/>
+            </div>
+          ))}
+
+          {err&&<div style={{color:"#f87171",fontSize:12,background:"#2a0d0d",borderRadius:8,padding:"8px 12px"}}>{err}</div>}
+
+          <div style={{display:"flex",gap:10}}>
+            {editing
+              ?<><button className="btn" onClick={saveEdit} disabled={saving} style={{opacity:saving?0.6:1}}>{saving?"Saving…":"💾 Save Changes"}</button>
+                <button className="btn-g" onClick={()=>{setEditing(null);setErr("");}}>Cancel</button></>
+              :<button className="btn" onClick={addMerchant} disabled={saving} style={{opacity:saving?0.6:1}}>{saving?"Saving…":"⊕ Add Merchant"}</button>
+            }
+          </div>
+
+          <div style={{borderTop:"1px solid #1a2030",paddingTop:14,fontSize:12,color:"#2a3a55",lineHeight:1.8}}>
+            <div style={{fontWeight:600,color:"#3a4a66",marginBottom:4}}>How it works:</div>
+            <div>• Each merchant gets a unique code (e.g. <span style={{color:"#10b981",fontFamily:"monospace"}}>KM01</span>)</div>
+            <div>• Admin selects the merchant when enrolling a new member</div>
+            <div>• The Registration Report tracks how many members each merchant has referred</div>
+          </div>
+        </div>
+
+        {/* Merchant list */}
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {merchants.length===0&&<div className="card" style={{padding:"32px",textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:12,opacity:.3}}>🏪</div>
+            <div style={{color:"#2a3a55",fontSize:13}}>No merchants yet. Add your first merchant partner.</div>
+          </div>}
+          {merchants.map(m=>{
+            const count=members.filter(mb=>mb.merchantCode===m.code).length;
+            return(
+              <div key={m.id} className="card" style={{padding:"16px 18px",opacity:m.active===false?0.5:1}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                  <div style={{width:44,height:44,borderRadius:10,background:"#0d2a1a",
+                    display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+                    fontSize:11,fontWeight:800,color:"#10b981",fontFamily:"monospace",letterSpacing:1}}>
+                    {m.code}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{m.name}</div>
+                    {m.contact&&<div style={{fontSize:11,color:"#445566",marginTop:2}}>👤 {m.contact}</div>}
+                    {m.address&&<div style={{fontSize:11,color:"#445566",marginTop:1}}>📍 {m.address}</div>}
+                    <div style={{marginTop:6,display:"flex",gap:8,alignItems:"center"}}>
+                      <span style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>{count} member{count!==1?"s":""}</span>
+                      {m.active===false&&<span style={{fontSize:10,color:"#886644",background:"#1a1008",padding:"2px 8px",borderRadius:99,border:"1px solid #2a2010"}}>Inactive</span>}
+                      <span style={{fontSize:10,color:"#2a3a55"}}>Since {m.joinedAt}</span>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
+                    <button className="btn-g" onClick={()=>{setEditing({...m});setErr("");}} style={{fontSize:11,padding:"5px 10px"}}>✏️</button>
+                    <button className="btn-g" onClick={()=>toggleActive(m.id)} style={{fontSize:11,padding:"5px 10px"}}>{m.active===false?"On":"Off"}</button>
+                    {count===0&&<button className="btn-d" onClick={()=>deleteMerchant(m.id)} style={{fontSize:11,padding:"5px 10px"}}>✕</button>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>}
+
+      {/* ── REPORT TAB ── */}
+      {tab==="report"&&<div>
+        {/* Summary cards */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+          {[
+            {label:"Total Merchants",  val:merchants.length,        color:"#60a5fa",bg:"#0d1a2a",border:"#1a3050"},
+            {label:"Active Merchants", val:merchants.filter(m=>m.active!==false).length, color:"#10b981",bg:"#0d2a1a",border:"#1a4a2a"},
+            {label:"Tracked Members",  val:totalRegistered,         color:"#f59e0b",bg:"#1a1208",border:"#3a2a12"},
+            {label:"Untracked Members",val:untracked,               color:"#f87171",bg:"#2a0d0d",border:"#4a1a1a"},
+          ].map(s=>(
+            <div key={s.label} className="card" style={{padding:"16px 18px",background:s.bg,border:`1px solid ${s.border}`}}>
+              <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.val}</div>
+              <div style={{fontSize:11,color:s.color,opacity:.6,textTransform:"uppercase",letterSpacing:.5}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Merchant report table */}
+        <div className="card" style={{overflow:"hidden"}}>
+          {/* Header */}
+          <div style={{display:"grid",gridTemplateColumns:"60px 1fr 100px 80px 80px 110px",gap:0,
+            borderBottom:"1px solid #1a2030",padding:"12px 16px"}}>
+            {["Code","Merchant","Members","Active","Pts Given","Joined"].map(h=>(
+              <div key={h} style={{fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</div>
+            ))}
+          </div>
+
+          {reportRows.length===0&&<div style={{textAlign:"center",padding:"40px",color:"#2a3a55",fontSize:13}}>
+            No merchants configured yet.
+          </div>}
+
+          {reportRows.map((r,i)=>(
+            <div key={r.id} style={{display:"grid",gridTemplateColumns:"60px 1fr 100px 80px 80px 110px",gap:0,
+              padding:"14px 16px",borderBottom:"1px solid #0e1825",
+              background:i%2===0?"#080c12":"#090d14"}}>
+              <div>
+                <span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:"#10b981",
+                  background:"#0d2a1a",padding:"3px 7px",borderRadius:6}}>{r.code}</span>
+              </div>
+              <div>
+                <div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{r.name}</div>
+                {r.contact&&<div style={{fontSize:11,color:"#445566",marginTop:2}}>{r.contact}</div>}
+                {r.active===false&&<span style={{fontSize:10,color:"#886644"}}>Inactive</span>}
+              </div>
+              <div style={{display:"flex",alignItems:"center"}}>
+                <span style={{fontSize:15,fontWeight:800,color:"#f59e0b"}}>{r.count}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center"}}>
+                <span style={{fontSize:13,color:"#4ade80"}}>{r.active}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center"}}>
+                <span style={{fontSize:13,color:"#8899bb"}}>{r.totalPts.toLocaleString()}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center"}}>
+                <span style={{fontSize:12,color:"#445566"}}>{r.joinedAt}</span>
+              </div>
+            </div>
+          ))}
+
+          {/* Untracked row */}
+          {untracked>0&&<div style={{display:"grid",gridTemplateColumns:"60px 1fr 100px 80px 80px 110px",gap:0,
+            padding:"14px 16px",background:"#0a0a0a",borderTop:"1px solid #1a2030"}}>
+            <div><span style={{fontFamily:"monospace",fontSize:12,color:"#445566",background:"#111",padding:"3px 7px",borderRadius:6}}>—</span></div>
+            <div style={{fontSize:13,color:"#445566",fontStyle:"italic"}}>No merchant code</div>
+            <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:15,fontWeight:800,color:"#445566"}}>{untracked}</span></div>
+            <div/><div/><div/>
+          </div>}
+        </div>
+
+        {/* Member breakdown per merchant */}
+        {reportRows.filter(r=>r.count>0).map(r=>(
+          <div key={r.id} className="card" style={{padding:"20px 22px",marginTop:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+              <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981",
+                background:"#0d2a1a",padding:"4px 10px",borderRadius:8}}>{r.code}</span>
+              <div>
+                <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{r.name}</div>
+                <div style={{fontSize:12,color:"#445566"}}>{r.count} member{r.count!==1?"s":""} registered</div>
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto"}}>
+              {members.filter(m=>m.merchantCode===r.code).map(m=>{
+                const tier=getTier(m.points,ctx.tiers);
+                return(
+                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+                    background:"#0a0f1a",borderRadius:8,border:"1px solid #1e2535"}}>
+                    <span style={{fontSize:16}}>{tier.icon}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{m.name}</div>
+                      <div style={{fontSize:11,color:"#445566"}}>{m.phone} · Joined {m.joinedAt}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#f59e0b"}}>{m.points.toLocaleString()} pts</div>
+                      <div style={{fontSize:10,color:tier.color,fontWeight:600}}>{tier.name}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>}
     </div>
   );
