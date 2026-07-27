@@ -2229,103 +2229,335 @@ function MerchantsPage({ctx}){
       </div>}
 
       {/* ── REPORT TAB ── */}
-      {tab==="report"&&<div>
-        {/* Summary cards */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
-          {[
-            {label:"Total Merchants",  val:merchants.length,        color:"#60a5fa",bg:"#0d1a2a",border:"#1a3050"},
-            {label:"Active Merchants", val:merchants.filter(m=>m.active!==false).length, color:"#10b981",bg:"#0d2a1a",border:"#1a4a2a"},
-            {label:"Tracked Members",  val:totalRegistered,         color:"#f59e0b",bg:"#1a1208",border:"#3a2a12"},
-            {label:"Untracked Members",val:untracked,               color:"#f87171",bg:"#2a0d0d",border:"#4a1a1a"},
-          ].map(s=>(
-            <div key={s.label} className="card" style={{padding:"16px 18px",background:s.bg,border:`1px solid ${s.border}`}}>
-              <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.val}</div>
-              <div style={{fontSize:11,color:s.color,opacity:.6,textTransform:"uppercase",letterSpacing:.5}}>{s.label}</div>
-            </div>
-          ))}
-        </div>
+      {tab==="report"&&<MerchantReport members={members} merchants={merchants} tiers={ctx.tiers} totalRegistered={totalRegistered} untracked={untracked}/>}
+    </div>
+  );
+}
 
-        {/* Merchant report table */}
-        <div className="card" style={{overflow:"hidden"}}>
-          {/* Header */}
-          <div style={{display:"grid",gridTemplateColumns:"60px 1fr 100px 80px 80px 110px",gap:0,
-            borderBottom:"1px solid #1a2030",padding:"12px 16px"}}>
-            {["Code","Merchant","Members","Active","Pts Given","Joined"].map(h=>(
-              <div key={h} style={{fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</div>
-            ))}
+
+// ─── MERCHANT BADGE ──────────────────────────────────────────────────────────
+function MerchantBadge({code,name,isHome}){
+  return(
+    <span style={{
+      display:"inline-flex",alignItems:"center",gap:4,
+      fontFamily:"monospace",fontWeight:700,fontSize:11,
+      color:isHome?"#10b981":"#60a5fa",
+      background:isHome?"#0d2a1a":"#0d1a2a",
+      border:`1px solid ${isHome?"#1a4a2a":"#1a3050"}`,
+      borderRadius:6,padding:"2px 8px",
+      whiteSpace:"nowrap"
+    }}>
+      {isHome?"🏠":""}{code}
+      <span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:400,opacity:.8}}>{name}</span>
+    </span>
+  );
+}
+
+// ─── MERCHANT REPORT ─────────────────────────────────────────────────────────
+function MerchantReport({members,merchants,tiers,totalRegistered,untracked}){
+  const [view,setView]=useState("summary");   // summary | byMerchant | byMember
+  const [selMerchant,setSelMerchant]=useState("all");
+  const [selMember,setSelMember]=useState("");
+  const [search,setSearch]=useState("");
+
+  // Helper: get merchant name from code
+  const mName=(code)=>merchants.find(m=>m.code===code)?.name||code||"—";
+
+  // All award transactions across all members with merchant info
+  const allAwardTxns=members.flatMap(mb=>
+    (mb.transactions||[])
+      .filter(t=>t.pts>0&&t.merchantCode)
+      .map(t=>({
+        ...t,
+        memberId:mb.id,
+        memberName:mb.name,
+        memberPhone:mb.phone,
+        memberTier:getTier(mb.points,tiers),
+        registeredMerchant:mb.merchantCode,
+        registeredMerchantName:mName(mb.merchantCode),
+        awardMerchantName:mName(t.merchantCode),
+      }))
+  ).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  // Per-merchant summary
+  const merchantSummary=merchants.map(m=>{
+    const registered=members.filter(mb=>mb.merchantCode===m.code);
+    const awardTxns=allAwardTxns.filter(t=>t.merchantCode===m.code);
+    const totalPts=awardTxns.reduce((s,t)=>s+t.pts,0);
+    const uniqueAwardedMembers=new Set(awardTxns.map(t=>t.memberId)).size;
+    // Members registered here who also earned points at OTHER merchants
+    const crossMerchant=registered.filter(mb=>
+      (mb.transactions||[]).some(t=>t.pts>0&&t.merchantCode&&t.merchantCode!==m.code)
+    ).length;
+    return{...m,registeredCount:registered.length,awardTxns:awardTxns.length,totalPts,uniqueAwardedMembers,crossMerchant};
+  }).sort((a,b)=>b.totalPts-a.totalPts);
+
+  // Per-member report: registered merchant + all locations where they earned
+  const memberReport=members.map(mb=>{
+    const txns=(mb.transactions||[]).filter(t=>t.pts>0&&t.merchantCode);
+    const locations=[...new Set(txns.map(t=>t.merchantCode))].map(code=>({
+      code,
+      name:mName(code),
+      pts:txns.filter(t=>t.merchantCode===code).reduce((s,t)=>s+t.pts,0),
+      count:txns.filter(t=>t.merchantCode===code).length,
+      isHome:code===mb.merchantCode,
+    })).sort((a,b)=>b.pts-a.pts);
+    return{
+      ...mb,
+      tier:getTier(mb.points,tiers),
+      registeredName:mName(mb.merchantCode),
+      locations,
+      crossMerchant:locations.filter(l=>!l.isHome).length>0,
+      totalEarned:txns.reduce((s,t)=>s+t.pts,0),
+    };
+  }).filter(mb=>search?mb.name.toLowerCase().includes(search.toLowerCase())||mb.phone.includes(search):true);
+
+  // Filtered by selected merchant
+  const filteredMembers=selMerchant==="all"
+    ?memberReport
+    :memberReport.filter(mb=>mb.merchantCode===selMerchant||mb.locations.some(l=>l.code===selMerchant));
+
+  return(
+    <div>
+      {/* Summary stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+        {[
+          {label:"Total Merchants",   val:merchants.length,                                      color:"#60a5fa",bg:"#0d1a2a",border:"#1a3050"},
+          {label:"Tracked Members",   val:totalRegistered,                                       color:"#10b981",bg:"#0d2a1a",border:"#1a4a2a"},
+          {label:"Untracked Members", val:untracked,                                             color:"#f87171",bg:"#2a0d0d",border:"#4a1a1a"},
+          {label:"Cross-Merchant",    val:memberReport.filter(m=>m.crossMerchant).length,        color:"#f59e0b",bg:"#1a1208",border:"#3a2a12"},
+        ].map(s=>(
+          <div key={s.label} className="card" style={{padding:"16px 18px",background:s.bg,border:`1px solid ${s.border}`}}>
+            <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.val}</div>
+            <div style={{fontSize:11,color:s.color,opacity:.6,textTransform:"uppercase",letterSpacing:.5}}>{s.label}</div>
           </div>
+        ))}
+      </div>
 
-          {reportRows.length===0&&<div style={{textAlign:"center",padding:"40px",color:"#2a3a55",fontSize:13}}>
-            No merchants configured yet.
-          </div>}
+      {/* View switcher */}
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
+        {[{id:"summary",label:"📊 Merchant Summary"},{id:"byMerchant",label:"🏪 By Merchant"},{id:"byMember",label:"👤 By Member"}].map(v=>(
+          <button key={v.id} onClick={()=>setView(v.id)}
+            style={{padding:"7px 16px",borderRadius:8,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
+              background:view===v.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+              color:view===v.id?"#000":"#5566aa"}}>
+            {v.label}
+          </button>
+        ))}
+        <input className="inp" placeholder="Search member…" value={search}
+          onChange={e=>setSearch(e.target.value)}
+          style={{flex:1,maxWidth:220,padding:"7px 12px",fontSize:13,marginLeft:"auto"}}/>
+      </div>
 
-          {reportRows.map((r,i)=>(
-            <div key={r.id} style={{display:"grid",gridTemplateColumns:"60px 1fr 100px 80px 80px 110px",gap:0,
-              padding:"14px 16px",borderBottom:"1px solid #0e1825",
-              background:i%2===0?"#080c12":"#090d14"}}>
-              <div>
-                <span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:"#10b981",
-                  background:"#0d2a1a",padding:"3px 7px",borderRadius:6}}>{r.code}</span>
-              </div>
-              <div>
-                <div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{r.name}</div>
-                {r.contact&&<div style={{fontSize:11,color:"#445566",marginTop:2}}>{r.contact}</div>}
-                {r.active===false&&<span style={{fontSize:10,color:"#886644"}}>Inactive</span>}
-              </div>
-              <div style={{display:"flex",alignItems:"center"}}>
-                <span style={{fontSize:15,fontWeight:800,color:"#f59e0b"}}>{r.count}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center"}}>
-                <span style={{fontSize:13,color:"#4ade80"}}>{r.active}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center"}}>
-                <span style={{fontSize:13,color:"#8899bb"}}>{r.totalPts.toLocaleString()}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center"}}>
-                <span style={{fontSize:12,color:"#445566"}}>{r.joinedAt}</span>
-              </div>
-            </div>
+      {/* ── SUMMARY VIEW ── */}
+      {view==="summary"&&<div className="card" style={{overflow:"hidden"}}>
+        <div style={{display:"grid",gridTemplateColumns:"80px 1fr 90px 90px 100px 100px 110px",
+          borderBottom:"1px solid #1a2030",padding:"12px 16px"}}>
+          {["Code","Merchant","Registered","Awarded To","Txns","Pts Given","Cross-Merch"].map(h=>(
+            <div key={h} style={{fontSize:10,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</div>
           ))}
+        </div>
+        {merchantSummary.map((m,i)=>(
+          <div key={m.id} style={{display:"grid",gridTemplateColumns:"80px 1fr 90px 90px 100px 100px 110px",
+            padding:"13px 16px",borderBottom:"1px solid #0e1825",
+            background:i%2===0?"#080c12":"#090d14"}}>
+            <div><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:"#10b981",background:"#0d2a1a",padding:"3px 7px",borderRadius:6}}>{m.code}</span></div>
+            <div>
+              <div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{m.name}</div>
+              {m.contact&&<div style={{fontSize:10,color:"#445566"}}>{m.contact}</div>}
+            </div>
+            <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{m.registeredCount}</span></div>
+            <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>{m.uniqueAwardedMembers}</span></div>
+            <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:13,color:"#8899bb"}}>{m.awardTxns}</span></div>
+            <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:14,fontWeight:700,color:"#60a5fa"}}>{m.totalPts.toLocaleString()}</span></div>
+            <div style={{display:"flex",alignItems:"center"}}>
+              {m.crossMerchant>0
+                ?<span style={{fontSize:12,color:"#f59e0b",fontWeight:600}}>{m.crossMerchant} member{m.crossMerchant!==1?"s":""}</span>
+                :<span style={{fontSize:12,color:"#2a3a55"}}>—</span>}
+            </div>
+          </div>
+        ))}
+        {merchantSummary.length===0&&<div style={{textAlign:"center",padding:"40px",color:"#2a3a55",fontSize:13}}>No merchants configured.</div>}
+      </div>}
 
-          {/* Untracked row */}
-          {untracked>0&&<div style={{display:"grid",gridTemplateColumns:"60px 1fr 100px 80px 80px 110px",gap:0,
-            padding:"14px 16px",background:"#0a0a0a",borderTop:"1px solid #1a2030"}}>
-            <div><span style={{fontFamily:"monospace",fontSize:12,color:"#445566",background:"#111",padding:"3px 7px",borderRadius:6}}>—</span></div>
-            <div style={{fontSize:13,color:"#445566",fontStyle:"italic"}}>No merchant code</div>
-            <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:15,fontWeight:800,color:"#445566"}}>{untracked}</span></div>
-            <div/><div/><div/>
-          </div>}
+      {/* ── BY MERCHANT VIEW ── */}
+      {view==="byMerchant"&&<div>
+        {/* Merchant filter */}
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          {[{code:"all",name:"All Merchants"},...merchants].map(m=>(
+            <button key={m.code} onClick={()=>setSelMerchant(m.code)}
+              style={{padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
+                background:selMerchant===m.code?"linear-gradient(135deg,#10b981,#059669)":"#0e1420",
+                color:selMerchant===m.code?"#000":"#5566aa"}}>
+              {m.code==="all"?"All":m.code} {m.code!=="all"&&<span style={{opacity:.7}}>({merchants.find(x=>x.code===m.code)&&members.filter(mb=>mb.merchantCode===m.code).length})</span>}
+            </button>
+          ))}
         </div>
 
-        {/* Member breakdown per merchant */}
-        {reportRows.filter(r=>r.count>0).map(r=>(
-          <div key={r.id} className="card" style={{padding:"20px 22px",marginTop:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-              <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981",
-                background:"#0d2a1a",padding:"4px 10px",borderRadius:8}}>{r.code}</span>
-              <div>
-                <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{r.name}</div>
-                <div style={{fontSize:12,color:"#445566"}}>{r.count} member{r.count!==1?"s":""} registered</div>
+        {merchants.filter(m=>selMerchant==="all"||m.code===selMerchant).map(m=>{
+          const regMembers=members.filter(mb=>mb.merchantCode===m.code);
+          const awardedHere=members.filter(mb=>
+            (mb.transactions||[]).some(t=>t.pts>0&&t.merchantCode===m.code)&&mb.merchantCode!==m.code
+          );
+          return(
+            <div key={m.id} className="card" style={{padding:"20px 22px",marginBottom:16}}>
+              {/* Merchant header */}
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,paddingBottom:14,borderBottom:"1px solid #1a2030"}}>
+                <div style={{width:48,height:48,borderRadius:10,background:"#0d2a1a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981"}}>{m.code}</span>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,color:"#e8eaf0",fontSize:15}}>{m.name}</div>
+                  {m.address&&<div style={{fontSize:11,color:"#445566",marginTop:2}}>📍 {m.address}</div>}
+                  {m.contact&&<div style={{fontSize:11,color:"#445566"}}>👤 {m.contact}</div>}
+                </div>
+                <div style={{display:"flex",gap:12,textAlign:"center"}}>
+                  {[
+                    {val:regMembers.length,label:"Registered",color:"#f59e0b"},
+                    {val:awardedHere.length,label:"Visiting",color:"#60a5fa"},
+                  ].map(s=>(
+                    <div key={s.label} style={{background:"#0a0f1a",borderRadius:8,padding:"8px 14px",border:"1px solid #1e2535"}}>
+                      <div style={{fontSize:18,fontWeight:800,color:s.color}}>{s.val}</div>
+                      <div style={{fontSize:10,color:"#445566",textTransform:"uppercase",letterSpacing:.5}}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Registered members */}
+              {regMembers.length>0&&<div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#4a7a4a",letterSpacing:.8,textTransform:"uppercase",marginBottom:8}}>🏠 Registered Members ({regMembers.length})</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto"}}>
+                  {regMembers.map(mb=>{
+                    const tier=getTier(mb.points,tiers);
+                    const txnsHere=(mb.transactions||[]).filter(t=>t.pts>0&&t.merchantCode===m.code);
+                    const ptsHere=txnsHere.reduce((s,t)=>s+t.pts,0);
+                    const otherLocs=[...new Set((mb.transactions||[]).filter(t=>t.pts>0&&t.merchantCode&&t.merchantCode!==m.code).map(t=>t.merchantCode))];
+                    return(
+                      <div key={mb.id} style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 1fr",gap:8,alignItems:"center",
+                        padding:"10px 12px",background:"#0a0f1a",borderRadius:8,border:"1px solid #1e2535"}}>
+                        <div>
+                          <div style={{fontSize:13,color:"#ccd",fontWeight:600}}>{mb.name}</div>
+                          <div style={{fontSize:11,color:"#445566"}}>{mb.phone} · Joined {mb.joinedAt}</div>
+                        </div>
+                        <div style={{textAlign:"center"}}>
+                          <div style={{fontSize:13,fontWeight:800,color:"#4ade80"}}>{ptsHere.toLocaleString()}</div>
+                          <div style={{fontSize:9,color:"#445566"}}>pts here</div>
+                        </div>
+                        <div style={{textAlign:"center"}}>
+                          <span style={{fontSize:10,color:tier.color,fontWeight:700,background:`${tier.color}18`,padding:"2px 8px",borderRadius:99}}>{tier.name}</span>
+                        </div>
+                        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                          {otherLocs.length>0
+                            ?otherLocs.map(code=><MerchantBadge key={code} code={code} name={mName(code)} isHome={false}/>)
+                            :<span style={{fontSize:10,color:"#2a3a55",fontStyle:"italic"}}>No other locations</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>}
+
+              {/* Visiting members (awarded here but not registered) */}
+              {awardedHere.length>0&&<div>
+                <div style={{fontSize:11,fontWeight:700,color:"#4a6a9a",letterSpacing:.8,textTransform:"uppercase",marginBottom:8}}>🔀 Visiting Members — Awarded Here ({awardedHere.length})</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
+                  {awardedHere.map(mb=>{
+                    const tier=getTier(mb.points,tiers);
+                    const txnsHere=(mb.transactions||[]).filter(t=>t.pts>0&&t.merchantCode===m.code);
+                    const ptsHere=txnsHere.reduce((s,t)=>s+t.pts,0);
+                    return(
+                      <div key={mb.id} style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 1fr",gap:8,alignItems:"center",
+                        padding:"10px 12px",background:"#0a0f18",borderRadius:8,border:"1px solid #1a2040"}}>
+                        <div>
+                          <div style={{fontSize:13,color:"#ccd",fontWeight:600}}>{mb.name}</div>
+                          <div style={{fontSize:11,color:"#445566"}}>{mb.phone}</div>
+                        </div>
+                        <div style={{textAlign:"center"}}>
+                          <div style={{fontSize:13,fontWeight:800,color:"#60a5fa"}}>{ptsHere.toLocaleString()}</div>
+                          <div style={{fontSize:9,color:"#445566"}}>pts here</div>
+                        </div>
+                        <div style={{textAlign:"center"}}>
+                          <span style={{fontSize:10,color:tier.color,fontWeight:700,background:`${tier.color}18`,padding:"2px 8px",borderRadius:99}}>{tier.name}</span>
+                        </div>
+                        <div>
+                          <MerchantBadge code={mb.merchantCode} name={mName(mb.merchantCode)} isHome={true}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>}
+
+              {regMembers.length===0&&awardedHere.length===0&&
+                <div style={{textAlign:"center",padding:"20px",color:"#2a3a55",fontSize:13}}>No activity for this merchant yet.</div>}
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto"}}>
-              {members.filter(m=>m.merchantCode===r.code).map(m=>{
-                const tier=getTier(m.points,ctx.tiers);
-                return(
-                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
-                    background:"#0a0f1a",borderRadius:8,border:"1px solid #1e2535"}}>
-                    <span style={{fontSize:16}}>{tier.icon}</span>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{m.name}</div>
-                      <div style={{fontSize:11,color:"#445566"}}>{m.phone} · Joined {m.joinedAt}</div>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:12,fontWeight:700,color:"#f59e0b"}}>{m.points.toLocaleString()} pts</div>
-                      <div style={{fontSize:10,color:tier.color,fontWeight:600}}>{tier.name}</div>
-                    </div>
+          );
+        })}
+      </div>}
+
+      {/* ── BY MEMBER VIEW ── */}
+      {view==="byMember"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {filteredMembers.length===0&&<div className="card" style={{padding:"32px",textAlign:"center"}}>
+          <div style={{fontSize:36,marginBottom:12,opacity:.3}}>👤</div>
+          <div style={{color:"#2a3a55",fontSize:13}}>No members found.</div>
+        </div>}
+        {filteredMembers.map(mb=>(
+          <div key={mb.id} className="card" style={{padding:"18px 20px"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:16,alignItems:"start"}}>
+              <div>
+                {/* Member header */}
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <span style={{fontSize:22}}>{mb.tier.icon}</span>
+                  <div>
+                    <div style={{fontWeight:700,color:"#e8eaf0",fontSize:14}}>{mb.name}</div>
+                    <div style={{fontSize:11,color:"#445566"}}>{mb.phone} · Joined {mb.joinedAt}</div>
                   </div>
-                );
-              })}
+                  <span style={{fontSize:10,color:mb.tier.color,fontWeight:700,background:`${mb.tier.color}18`,padding:"2px 8px",borderRadius:99,marginLeft:4}}>{mb.tier.name}</span>
+                </div>
+
+                {/* Registered merchant */}
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 12px",background:"#0a0f1a",borderRadius:8,border:"1px solid #1e2535"}}>
+                  <span style={{fontSize:11,color:"#445566",whiteSpace:"nowrap"}}>Registered at:</span>
+                  {mb.merchantCode
+                    ?<MerchantBadge code={mb.merchantCode} name={mb.registeredName} isHome={true}/>
+                    :<span style={{fontSize:11,color:"#2a3a55",fontStyle:"italic"}}>No merchant code</span>}
+                </div>
+
+                {/* Award locations */}
+                {mb.locations.length>0&&<div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#445566",letterSpacing:.8,textTransform:"uppercase",marginBottom:6}}>Points Awarded At:</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    {mb.locations.map(loc=>(
+                      <div key={loc.code} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",
+                        background:loc.isHome?"#0d2a1a":"#0a0f1a",borderRadius:7,
+                        border:`1px solid ${loc.isHome?"#1a4a2a":"#1e2535"}`}}>
+                        <MerchantBadge code={loc.code} name={loc.name} isHome={loc.isHome}/>
+                        <div style={{flex:1}}/>
+                        <span style={{fontSize:12,color:"#8899bb"}}>{loc.count} txn{loc.count!==1?"s":""}</span>
+                        <span style={{fontSize:13,fontWeight:800,color:loc.isHome?"#4ade80":"#60a5fa"}}>+{loc.pts.toLocaleString()} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+                {mb.locations.length===0&&<div style={{fontSize:12,color:"#2a3a55",fontStyle:"italic"}}>No points awarded yet.</div>}
+              </div>
+
+              {/* Right side stats */}
+              <div style={{display:"flex",flexDirection:"column",gap:8,minWidth:100,textAlign:"right"}}>
+                <div style={{background:"#0a0f1a",borderRadius:8,padding:"10px 14px",border:"1px solid #1e2535"}}>
+                  <div style={{fontSize:18,fontWeight:800,color:"#f59e0b"}}>{mb.points.toLocaleString()}</div>
+                  <div style={{fontSize:9,color:"#445566",textTransform:"uppercase",letterSpacing:.5}}>Balance</div>
+                </div>
+                <div style={{background:"#0a0f1a",borderRadius:8,padding:"10px 14px",border:"1px solid #1e2535"}}>
+                  <div style={{fontSize:18,fontWeight:800,color:"#4ade80"}}>{mb.totalEarned.toLocaleString()}</div>
+                  <div style={{fontSize:9,color:"#445566",textTransform:"uppercase",letterSpacing:.5}}>Total Earned</div>
+                </div>
+                {mb.locations.length>1&&<div style={{background:"#1a1208",borderRadius:8,padding:"8px 12px",border:"1px solid #3a2a12"}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#f59e0b"}}>{mb.locations.length}</div>
+                  <div style={{fontSize:9,color:"#7a6a3a",textTransform:"uppercase",letterSpacing:.5}}>Locations</div>
+                </div>}
+              </div>
             </div>
           </div>
         ))}
