@@ -219,7 +219,7 @@ export default function AdminApp() {
   },[]);
 
   // Award points + cascade referral overrides
-  const awardPoints = (memberId, basePts, note, icon="◆") => {
+  const awardPoints = (memberId, basePts, note, merchantCode="", icon="◆") => {
     setMembers(prev=>{
       const member=prev.find(m=>m.id===memberId); if(!member) return prev;
       const tier=getTier(member.points,tiers);
@@ -228,8 +228,8 @@ export default function AdminApp() {
       const overrideMap={};
       ancs.forEach(a=>{const rl=refLevels.find(r=>r.level===a.level);if(rl)overrideMap[a.id]=(overrideMap[a.id]||0)+Math.round(effective*rl.overridePercent/100);});
       return prev.map(m=>{
-        if(m.id===memberId) return {...m,points:m.points+effective,transactions:[{id:genId(),pts:effective,icon,label:note,date:today(),type:"earn"},...m.transactions]};
-        if(overrideMap[m.id]) return {...m,points:m.points+overrideMap[m.id],transactions:[{id:genId(),pts:overrideMap[m.id],icon:"◈",label:`Override: ${member.name}`,date:today(),type:"earn"},...m.transactions]};
+        if(m.id===memberId) return {...m,points:m.points+effective,transactions:[{id:genId(),pts:effective,icon,label:note,date:today(),type:"earn",merchantCode},...m.transactions]};
+        if(overrideMap[m.id]) return {...m,points:m.points+overrideMap[m.id],transactions:[{id:genId(),pts:overrideMap[m.id],icon:"◈",label:`Override: ${member.name}`,date:today(),type:"earn",merchantCode},...m.transactions]};
         return m;
       });
     });
@@ -559,48 +559,210 @@ function Enroll({ctx,onDone}){
 
 // ─── AWARD POINTS ─────────────────────────────────────────────────────────────
 function AwardPts({ctx}){
-  const {members,tiers,refLevels,awardPoints,showToast}=ctx;
-  const [sel,setSel]=useState("");const [raw,setRaw]=useState("");const [note,setNote]=useState("");
+  const {members,tiers,refLevels,awardPoints,showToast,merchants}=ctx;
+  const [tab,setTab]=useState("award"); // award | report
+  const [sel,setSel]=useState("");
+  const [selMerchant,setSelMerchant]=useState("");
+  const [raw,setRaw]=useState("");
+  const [note,setNote]=useState("");
   const member=members.find(m=>m.id===sel);
+  const activeMerchants=(merchants||[]).filter(m=>m.active!==false);
+  const selectedMerchant=activeMerchants.find(m=>m.code===selMerchant);
+
   const preview=()=>{
-    if(!member||!raw)return null;
-    const tier=getTier(member.points,tiers);const base=parseInt(raw)||0;const eff=Math.round(base*tier.multiplier);
+    if(!member||!raw||!selMerchant)return null;
+    const tier=getTier(member.points,tiers);
+    const base=parseInt(raw)||0;
+    const eff=Math.round(base*tier.multiplier);
     const ancs=getAncestors(members,member.id,refLevels.length);
-    const ov=ancs.map(a=>{const rl=refLevels.find(r=>r.level===a.level);const am=members.find(m=>m.id===a.id);return rl?{level:rl.level,pct:rl.overridePercent,pts:Math.round(eff*rl.overridePercent/100),name:am?.name,color:rl.color}:null;}).filter(Boolean);
-    return {base,eff,tier,ov};
+    const ov=ancs.map(a=>{
+      const rl=refLevels.find(r=>r.level===a.level);
+      const am=members.find(m=>m.id===a.id);
+      return rl?{level:rl.level,pct:rl.overridePercent,pts:Math.round(eff*rl.overridePercent/100),name:am?.name,color:rl.color}:null;
+    }).filter(Boolean);
+    return{base,eff,tier,ov};
   };
   const pv=preview();
-  const award=()=>{if(!member||!raw)return;awardPoints(member.id,parseInt(raw)||0,note||"Manual Award");showToast(`Points awarded to ${member.name}! Syncing to member portal…`);setSel("");setRaw("");setNote("");};
-  return <div className="fi" style={{maxWidth:580}}>
-    <div style={{marginBottom:28}}>
-      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Award Points</h1>
-      <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Multiplied by tier · Referral overrides cascade upward · Synced live</p>
-    </div>
-    <div className="card" style={{padding:"28px 30px",display:"flex",flexDirection:"column",gap:18}}>
-      <div>
-        <label className="lbl">Select Member</label>
-        <select className="inp" value={sel} onChange={e=>setSel(e.target.value)}>
-          <option value="">— Choose member —</option>
-          {members.map(m=>{const t=getTier(m.points,tiers);return <option key={m.id} value={m.id}>{m.name} · {t.name} · {m.points} pts</option>;})}
-        </select>
+
+  const award=()=>{
+    if(!member||!raw||!selMerchant)return;
+    const label=(note?note+" — ":"")+`via ${selectedMerchant?.name||selMerchant}`;
+    awardPoints(member.id,parseInt(raw)||0,label,selMerchant);
+    showToast(`Points awarded to ${member.name} via ${selectedMerchant?.name}!`);
+    setSel("");setRaw("");setNote("");setSelMerchant("");
+  };
+
+  // ── Report data ──
+  const reportMerchants=activeMerchants.map(m=>{
+    const txns=members.flatMap(mb=>(mb.transactions||[]).filter(t=>t.merchantCode===m.code&&t.pts>0));
+    const uniqueMembers=new Set(members.filter(mb=>(mb.transactions||[]).some(t=>t.merchantCode===m.code&&t.pts>0)).map(mb=>mb.id)).size;
+    const totalPts=txns.reduce((s,t)=>s+t.pts,0);
+    const txnCount=txns.length;
+    return{...m,txnCount,uniqueMembers,totalPts};
+  }).sort((a,b)=>b.totalPts-a.totalPts);
+
+  const grandTotal=reportMerchants.reduce((s,m)=>s+m.totalPts,0);
+  const grandTxns=reportMerchants.reduce((s,m)=>s+m.txnCount,0);
+
+  return(
+    <div className="fi" style={{maxWidth:720}}>
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Award Points</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Multiplied by tier · Referral overrides cascade upward · Synced live</p>
       </div>
-      {member&&<div style={{background:"#0a1020",borderRadius:10,padding:"12px 16px",border:"1px solid #1a2535",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><div style={{fontWeight:700,color:"#ccd",fontSize:15}}>{member.name}</div><div style={{color:"#6677aa",fontSize:12,marginTop:2}}>{member.phone}</div></div>
-        <div style={{textAlign:"right"}}><TierBadge tier={getTier(member.points,tiers)}/><div style={{fontSize:12,color:"#6677aa",marginTop:4}}>×{getTier(member.points,tiers).multiplier}</div></div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:22}}>
+        {[{id:"award",label:"◆ Award Points"},{id:"report",label:"📊 Merchant Report"}].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
+              background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+              color:tab===t.id?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── AWARD TAB ── */}
+      {tab==="award"&&<div className="card" style={{padding:"28px 30px",display:"flex",flexDirection:"column",gap:18}}>
+
+        {/* Merchant selector — required */}
+        <div>
+          <label className="lbl">Merchant <span style={{color:"#f87171",fontWeight:700}}>*</span></label>
+          {activeMerchants.length===0
+            ?<div style={{background:"#1a0d0d",border:"1px solid #3a1a1a",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#aa7777"}}>
+                ⚠️ No active merchants configured. Go to <strong style={{color:"#f59e0b"}}>🏪 Merchants</strong> to add merchants before awarding points.
+              </div>
+            :<select className="inp" value={selMerchant} onChange={e=>setSelMerchant(e.target.value)}>
+              <option value="">— Select Merchant —</option>
+              {activeMerchants.map(m=><option key={m.code} value={m.code}>{m.name} ({m.code})</option>)}
+            </select>
+          }
+          {selMerchant&&selectedMerchant&&<div style={{marginTop:8,background:"#0a1020",borderRadius:8,padding:"10px 14px",border:"1px solid #1a2535",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:"#10b981",background:"#0d2a1a",padding:"3px 8px",borderRadius:6}}>{selectedMerchant.code}</span>
+            <div>
+              <div style={{fontSize:13,color:"#ccd",fontWeight:600}}>{selectedMerchant.name}</div>
+              {selectedMerchant.contact&&<div style={{fontSize:11,color:"#445566"}}>{selectedMerchant.contact}</div>}
+            </div>
+          </div>}
+        </div>
+
+        {/* Member selector */}
+        <div>
+          <label className="lbl">Select Member <span style={{color:"#f87171",fontWeight:700}}>*</span></label>
+          <select className="inp" value={sel} onChange={e=>setSel(e.target.value)} disabled={!selMerchant}>
+            <option value="">{selMerchant?"— Choose member —":"— Select merchant first —"}</option>
+            {members.map(m=>{const t=getTier(m.points,tiers);return <option key={m.id} value={m.id}>{m.name} · {t.name} · {m.points} pts</option>;})}
+          </select>
+        </div>
+
+        {member&&<div style={{background:"#0a1020",borderRadius:10,padding:"12px 16px",border:"1px solid #1a2535",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><div style={{fontWeight:700,color:"#ccd",fontSize:15}}>{member.name}</div><div style={{color:"#6677aa",fontSize:12,marginTop:2}}>{member.phone}</div></div>
+          <div style={{textAlign:"right"}}><TierBadge tier={getTier(member.points,tiers)}/><div style={{fontSize:12,color:"#6677aa",marginTop:4}}>×{getTier(member.points,tiers).multiplier}</div></div>
+        </div>}
+
+        <div><label className="lbl">Base Points <span style={{color:"#f87171",fontWeight:700}}>*</span></label><input className="inp" type="number" min="1" placeholder="200" value={raw} onChange={e=>setRaw(e.target.value)} disabled={!selMerchant}/></div>
+        <div><label className="lbl">Note <span style={{color:"#2a3a55",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label><input className="inp" placeholder="e.g. Dining purchase, Monthly spend" value={note} onChange={e=>setNote(e.target.value)}/></div>
+
+        {pv&&<div style={{background:"#0d1a10",border:"1px solid #1a3a1a",borderRadius:12,padding:"16px 18px"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#4ade80",letterSpacing:.8,marginBottom:12,textTransform:"uppercase"}}>Preview</div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+            <span style={{color:"#6a9a6a",fontSize:13}}>Merchant</span>
+            <span style={{color:"#10b981",fontWeight:600,fontFamily:"monospace"}}>{selectedMerchant?.name}</span>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:"#6a9a6a",fontSize:13}}>Base</span><span style={{color:"#ccd",fontWeight:600}}>{pv.base.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:"#6a9a6a",fontSize:13}}>{pv.tier.name} ×{pv.tier.multiplier}</span><span style={{color:pv.tier.color,fontWeight:700}}>{pv.eff.toLocaleString()} pts</span></div>
+          {pv.ov.length>0&&<>
+            <div style={{borderTop:"1px solid #1a3a1a",margin:"8px 0",paddingTop:8,fontSize:11,color:"#4a7a4a",textTransform:"uppercase",letterSpacing:.8}}>Referral Overrides</div>
+            {pv.ov.map((o,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{color:"#6a9a6a",fontSize:13}}>L{o.level}: {o.name} ({o.pct}%)</span><span style={{color:o.color,fontWeight:600}}>+{o.pts}</span></div>)}
+          </>}
+        </div>}
+
+        <button className="btn" onClick={award} disabled={!sel||!raw||!selMerchant}
+          style={{opacity:(!sel||!raw||!selMerchant)?0.4:1}}>
+          ◆ Award Points{selectedMerchant?` via ${selectedMerchant.name}`:""}
+        </button>
+        {!selMerchant&&<div style={{fontSize:12,color:"#445566",textAlign:"center"}}>Select a merchant to enable point awarding</div>}
       </div>}
-      <div><label className="lbl">Base Points</label><input className="inp" type="number" min="1" placeholder="200" value={raw} onChange={e=>setRaw(e.target.value)}/></div>
-      <div><label className="lbl">Note</label><input className="inp" placeholder="e.g. Monthly purchase" value={note} onChange={e=>setNote(e.target.value)}/></div>
-      {pv&&<div style={{background:"#0d1a10",border:"1px solid #1a3a1a",borderRadius:12,padding:"16px 18px"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#4ade80",letterSpacing:.8,marginBottom:12,textTransform:"uppercase"}}>Preview</div>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:"#6a9a6a",fontSize:13}}>Base</span><span style={{color:"#ccd",fontWeight:600}}>{pv.base.toLocaleString()}</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:"#6a9a6a",fontSize:13}}>{pv.tier.name} ×{pv.tier.multiplier}</span><span style={{color:pv.tier.color,fontWeight:700}}>{pv.eff.toLocaleString()} pts</span></div>
-        {pv.ov.length>0&&<><div style={{borderTop:"1px solid #1a3a1a",margin:"8px 0",paddingTop:8,fontSize:11,color:"#4a7a4a",textTransform:"uppercase",letterSpacing:.8}}>Referral Overrides</div>
-          {pv.ov.map((o,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{color:"#6a9a6a",fontSize:13}}>L{o.level}: {o.name} ({o.pct}%)</span><span style={{color:o.color,fontWeight:600}}>+{o.pts}</span></div>)}
-        </>}
+
+      {/* ── MERCHANT REPORT TAB ── */}
+      {tab==="report"&&<div>
+        {/* Summary */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:24}}>
+          {[
+            {label:"Active Merchants", val:activeMerchants.length,       color:"#10b981",bg:"#0d2a1a",border:"#1a4a2a"},
+            {label:"Total Pts Awarded",val:grandTotal.toLocaleString(),   color:"#f59e0b",bg:"#1a1208",border:"#3a2a12"},
+            {label:"Total Transactions",val:grandTxns,                   color:"#60a5fa",bg:"#0d1a2a",border:"#1a3050"},
+          ].map(s=>(
+            <div key={s.label} className="card" style={{padding:"16px 18px",background:s.bg,border:`1px solid ${s.border}`}}>
+              <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.val}</div>
+              <div style={{fontSize:11,color:s.color,opacity:.6,textTransform:"uppercase",letterSpacing:.5}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Merchant table */}
+        <div className="card" style={{overflow:"hidden",marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"80px 1fr 90px 90px 110px",
+            borderBottom:"1px solid #1a2030",padding:"12px 16px"}}>
+            {["Code","Merchant","Members","Txns","Pts Awarded"].map(h=>(
+              <div key={h} style={{fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</div>
+            ))}
+          </div>
+          {reportMerchants.length===0&&<div style={{textAlign:"center",padding:"32px",color:"#2a3a55",fontSize:13}}>No transactions yet.</div>}
+          {reportMerchants.map((m,i)=>(
+            <div key={m.id} style={{display:"grid",gridTemplateColumns:"80px 1fr 90px 90px 110px",
+              padding:"12px 16px",borderBottom:"1px solid #0e1825",
+              background:i%2===0?"#080c12":"#090d14"}}>
+              <div><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:"#10b981",background:"#0d2a1a",padding:"3px 8px",borderRadius:6}}>{m.code}</span></div>
+              <div>
+                <div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{m.name}</div>
+                {m.contact&&<div style={{fontSize:11,color:"#445566"}}>{m.contact}</div>}
+              </div>
+              <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:14,fontWeight:700,color:"#8899bb"}}>{m.uniqueMembers}</span></div>
+              <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:14,fontWeight:700,color:"#8899bb"}}>{m.txnCount}</span></div>
+              <div style={{display:"flex",alignItems:"center"}}><span style={{fontSize:15,fontWeight:800,color:"#f59e0b"}}>{m.totalPts.toLocaleString()}</span></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Per-merchant transaction breakdown */}
+        {reportMerchants.filter(m=>m.txnCount>0).map(m=>{
+          const txnsForMerchant=members.flatMap(mb=>
+            (mb.transactions||[])
+              .filter(t=>t.merchantCode===m.code&&t.pts>0)
+              .map(t=>({...t,memberName:mb.name,memberPhone:mb.phone,tier:getTier(mb.points,tiers)}))
+          ).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+          return(
+            <div key={m.id} className="card" style={{padding:"20px 22px",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+                <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981",background:"#0d2a1a",padding:"4px 10px",borderRadius:8}}>{m.code}</span>
+                <div>
+                  <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{m.name}</div>
+                  <div style={{fontSize:12,color:"#445566"}}>{m.txnCount} transaction{m.txnCount!==1?"s":""} · {m.totalPts.toLocaleString()} pts awarded total</div>
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:240,overflowY:"auto"}}>
+                {txnsForMerchant.map((t,i)=>(
+                  <div key={t.id||i} style={{display:"grid",gridTemplateColumns:"1fr 140px 80px 80px",gap:8,alignItems:"center",
+                    padding:"9px 12px",background:"#0a0f1a",borderRadius:8,border:"1px solid #1e2535"}}>
+                    <div>
+                      <div style={{fontSize:13,color:"#ccd",fontWeight:500}}>{t.memberName}</div>
+                      <div style={{fontSize:11,color:"#445566"}}>{t.memberPhone}</div>
+                    </div>
+                    <div style={{fontSize:11,color:"#445566"}}>{t.label}</div>
+                    <div style={{fontSize:11,color:"#5566aa",textAlign:"center"}}>{t.date}</div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#4ade80",textAlign:"right"}}>+{t.pts.toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>}
-      <button className="btn" onClick={award} disabled={!sel||!raw}>◆ Award Points</button>
     </div>
-  </div>;
+  );
 }
 
 
