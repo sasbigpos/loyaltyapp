@@ -2569,130 +2569,186 @@ function MerchantReport({members,merchants,tiers,totalRegistered,untracked}){
   );
 }
 
+
+// ─── DONUT CHART ─────────────────────────────────────────────────────────────
+function Donut({pct,size=80,color="#f59e0b",trackColor="#1e2535",label}){
+  const r=size/2-8;const circ=2*Math.PI*r;
+  const dash=circ*(pct/100);const gap=circ-dash;
+  return(
+    <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
+      <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={trackColor} strokeWidth={8}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={8}
+          strokeDasharray={`${dash} ${gap}`} strokeLinecap="round"/>
+      </svg>
+      <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+        <div style={{fontSize:size>70?16:12,fontWeight:800,color,lineHeight:1}}>{pct}%</div>
+        {label&&<div style={{fontSize:9,color:"#445566",textTransform:"uppercase",letterSpacing:.5,marginTop:2}}>{label}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── SPLIT BAR ───────────────────────────────────────────────────────────────
+function SplitBar({homePct,visitingPct}){
+  return(
+    <div style={{height:12,borderRadius:99,overflow:"hidden",background:"#1e2535",display:"flex"}}>
+      <div style={{width:`${homePct}%`,background:"#10b981",transition:"width .4s ease"}}/>
+      <div style={{width:`${visitingPct}%`,background:"#f59e0b",transition:"width .4s ease"}}/>
+    </div>
+  );
+}
+
 // ─── MERCHANT DASHBOARD ───────────────────────────────────────────────────────
 function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary}){
   const [selCode,setSelCode]=useState("all");
+  const isAll=selCode==="all";
 
-  // For each merchant compute the spend breakdown
+  // Per-merchant computed data
   const merchantData=merchantSummary.map(m=>{
-    // Members registered HERE who earned pts here
     const regAndSpentHere=members.filter(mb=>
       mb.merchantCode===m.code&&(mb.transactions||[]).some(t=>t.pts>0&&t.merchantCode===m.code)
     ).length;
-    // Members NOT registered here but spent here (visiting)
     const notRegButSpentHere=members.filter(mb=>
       mb.merchantCode!==m.code&&(mb.transactions||[]).some(t=>t.pts>0&&t.merchantCode===m.code)
     ).length;
     const totalSpenders=regAndSpentHere+notRegButSpentHere;
     const visitingPct=totalSpenders>0?Math.round((notRegButSpentHere/totalSpenders)*100):0;
     const homePct=totalSpenders>0?Math.round((regAndSpentHere/totalSpenders)*100):0;
-    // Points split
     const ptsFromReg=allAwardTxns.filter(t=>t.merchantCode===m.code&&members.find(mb=>mb.id===t.memberId)?.merchantCode===m.code).reduce((s,t)=>s+t.pts,0);
     const ptsFromVisiting=allAwardTxns.filter(t=>t.merchantCode===m.code&&members.find(mb=>mb.id===t.memberId)?.merchantCode!==m.code).reduce((s,t)=>s+t.pts,0);
     return{...m,regAndSpentHere,notRegButSpentHere,totalSpenders,visitingPct,homePct,ptsFromReg,ptsFromVisiting};
   });
 
-  const filtered=selCode==="all"?merchantData:merchantData.filter(m=>m.code===selCode);
-  const totalSpenders=merchantData.reduce((s,m)=>s+m.totalSpenders,0);
-  const totalVisiting=merchantData.reduce((s,m)=>s+m.notRegButSpentHere,0);
-  const totalHome=merchantData.reduce((s,m)=>s+m.regAndSpentHere,0);
-  const overallVisitingPct=totalSpenders>0?Math.round((totalVisiting/totalSpenders)*100):0;
-  const totalPtsVisiting=merchantData.reduce((s,m)=>s+m.ptsFromVisiting,0);
-  const totalPtsHome=merchantData.reduce((s,m)=>s+m.ptsFromReg,0);
-  const totalPtsAll=totalPtsVisiting+totalPtsHome;
+  // Active filter data — drives BOTH KPI row and cards
+  const filtered=isAll?merchantData:merchantData.filter(m=>m.code===selCode);
+  const selectedMerchant=isAll?null:merchants.find(m=>m.code===selCode);
 
-  // Donut chart via SVG
-  const Donut=({pct,size=80,color="#f59e0b",trackColor="#1e2535",label})=>{
-    const r=size/2-8;const circ=2*Math.PI*r;
-    const dash=circ*(pct/100);const gap=circ-dash;
-    return(
-      <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
-        <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
-          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={trackColor} strokeWidth={8}/>
-          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={8}
-            strokeDasharray={`${dash} ${gap}`} strokeLinecap="round"/>
-        </svg>
-        <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-          <div style={{fontSize:size>70?16:12,fontWeight:800,color,lineHeight:1}}>{pct}%</div>
-          {label&&<div style={{fontSize:9,color:"#445566",textTransform:"uppercase",letterSpacing:.5,marginTop:2}}>{label}</div>}
-        </div>
-      </div>
-    );
-  };
-
-  // Bar component
-  const SplitBar=({homePct,visitingPct,homeColor="#10b981",visitColor="#f59e0b"})=>(
-    <div style={{height:12,borderRadius:99,overflow:"hidden",background:"#1e2535",display:"flex"}}>
-      <div style={{width:`${homePct}%`,background:homeColor,transition:"width .4s ease"}}/>
-      <div style={{width:`${visitingPct}%`,background:visitColor,transition:"width .4s ease"}}/>
-    </div>
-  );
+  // Aggregate KPIs from filtered set
+  const kpiSpenders=filtered.reduce((s,m)=>s+m.totalSpenders,0);
+  const kpiVisiting=filtered.reduce((s,m)=>s+m.notRegButSpentHere,0);
+  const kpiHome=filtered.reduce((s,m)=>s+m.regAndSpentHere,0);
+  const kpiVisitingPct=kpiSpenders>0?Math.round((kpiVisiting/kpiSpenders)*100):0;
+  const kpiHomePct=kpiSpenders>0?Math.round((kpiHome/kpiSpenders)*100):0;
+  const kpiPtsHome=filtered.reduce((s,m)=>s+m.ptsFromReg,0);
+  const kpiPtsVisiting=filtered.reduce((s,m)=>s+m.ptsFromVisiting,0);
+  const kpiPtsAll=kpiPtsHome+kpiPtsVisiting;
 
   return(
     <div>
-      {/* Overall KPI row */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
-        {/* Big donut - overall visiting % */}
-        <div className="card" style={{padding:"24px",display:"flex",alignItems:"center",gap:20,background:"#0e1420",border:"1px solid #1e2535"}}>
-          <Donut pct={overallVisitingPct} size={90} color="#f59e0b" label="visiting"/>
-          <div>
-            <div style={{fontSize:13,color:"#445566",marginBottom:4}}>Cross-Merchant Spend</div>
-            <div style={{fontSize:22,fontWeight:800,color:"#f59e0b"}}>{totalVisiting}</div>
-            <div style={{fontSize:11,color:"#445566",marginTop:2}}>members not registered here<br/>but awarded points at a merchant</div>
+      {/* Merchant filter — ABOVE everything so it controls all KPIs */}
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",alignItems:"center",
+        background:"#0a0f1a",borderRadius:12,padding:"12px 16px",border:"1px solid #1e2535"}}>
+        <span style={{fontSize:11,color:"#445566",textTransform:"uppercase",letterSpacing:.8,marginRight:4}}>View:</span>
+        <button onClick={()=>setSelCode("all")}
+          style={{padding:"7px 18px",borderRadius:8,fontSize:12,fontWeight:700,border:"none",cursor:"pointer",
+            background:isAll?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+            color:isAll?"#000":"#5566aa",transition:"all .15s"}}>
+          🌐 All Merchants
+        </button>
+        {merchants.map(m=>(
+          <button key={m.code} onClick={()=>setSelCode(m.code)}
+            style={{padding:"7px 16px",borderRadius:8,fontSize:12,fontWeight:700,border:"none",cursor:"pointer",
+              background:selCode===m.code?"linear-gradient(135deg,#10b981,#059669)":"#0e1420",
+              color:selCode===m.code?"#000":"#5566aa",transition:"all .15s",
+              display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontFamily:"monospace",fontSize:11}}>{m.code}</span>
+            <span style={{opacity:.7,fontWeight:400,fontSize:11}}>{m.name}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Context header when a specific merchant is selected */}
+      {selectedMerchant&&<div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20,
+        padding:"14px 18px",background:"#0d2a1a",borderRadius:12,border:"1px solid #1a4a2a"}}>
+        <div style={{width:48,height:48,borderRadius:10,background:"#0a1a0a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <span style={{fontFamily:"monospace",fontWeight:800,fontSize:14,color:"#10b981"}}>{selectedMerchant.code}</span>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16}}>{selectedMerchant.name}</div>
+          <div style={{display:"flex",gap:16,marginTop:4,flexWrap:"wrap"}}>
+            {selectedMerchant.address&&<span style={{fontSize:11,color:"#4a7a4a"}}>📍 {selectedMerchant.address}</span>}
+            {selectedMerchant.contact&&<span style={{fontSize:11,color:"#4a7a4a"}}>👤 {selectedMerchant.contact}</span>}
+            <span style={{fontSize:11,color:"#4a7a4a"}}>Since {selectedMerchant.joinedAt}</span>
           </div>
         </div>
-        {/* Registered & spent */}
-        <div className="card" style={{padding:"24px",display:"flex",alignItems:"center",gap:20,background:"#0d2a1a",border:"1px solid #1a4a2a"}}>
-          <Donut pct={100-overallVisitingPct} size={90} color="#10b981" label="home"/>
+        <div style={{fontSize:11,color:"#4a7a4a",background:"#0a1a0a",borderRadius:8,padding:"6px 12px",border:"1px solid #1a3a1a"}}>
+          Showing data for this merchant only
+        </div>
+      </div>}
+
+      {/* KPI row — always reflects selected filter */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
+        {/* Visiting donut */}
+        <div className="card" style={{padding:"24px",display:"flex",alignItems:"center",gap:20,background:"#0e1420",border:"1px solid #1e2535"}}>
+          <Donut pct={kpiVisitingPct} size={90} color="#f59e0b" label="visiting"/>
           <div>
-            <div style={{fontSize:13,color:"#4a7a4a",marginBottom:4}}>Home Members Spending</div>
-            <div style={{fontSize:22,fontWeight:800,color:"#10b981"}}>{totalHome}</div>
-            <div style={{fontSize:11,color:"#4a7a4a",marginTop:2}}>members registered AND<br/>awarded pts at their own merchant</div>
+            <div style={{fontSize:12,color:"#445566",marginBottom:4}}>
+              {isAll?"Cross-Merchant Spend":"Visiting (Not Registered Here)"}
+            </div>
+            <div style={{fontSize:26,fontWeight:800,color:"#f59e0b"}}>{kpiVisiting}</div>
+            <div style={{fontSize:11,color:"#445566",marginTop:2,lineHeight:1.5}}>
+              {isAll?"members spending at a merchant they're not registered at"
+                    :"members awarded here but registered elsewhere"}
+            </div>
+          </div>
+        </div>
+        {/* Home donut */}
+        <div className="card" style={{padding:"24px",display:"flex",alignItems:"center",gap:20,background:"#0d2a1a",border:"1px solid #1a4a2a"}}>
+          <Donut pct={kpiHomePct} size={90} color="#10b981" label="home"/>
+          <div>
+            <div style={{fontSize:12,color:"#4a7a4a",marginBottom:4}}>
+              {isAll?"Home Members Spending":"Registered Here & Spending"}
+            </div>
+            <div style={{fontSize:26,fontWeight:800,color:"#10b981"}}>{kpiHome}</div>
+            <div style={{fontSize:11,color:"#4a7a4a",marginTop:2,lineHeight:1.5}}>
+              {isAll?"members spending at their own registered merchant"
+                    :"members registered here AND awarded pts here"}
+            </div>
           </div>
         </div>
         {/* Points split */}
         <div className="card" style={{padding:"24px",background:"#0a0f1a",border:"1px solid #1e2535"}}>
-          <div style={{fontSize:13,color:"#445566",marginBottom:14}}>Points Split — All Merchants</div>
-          <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:10}}>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                <span style={{fontSize:11,color:"#10b981"}}>🏠 Home</span>
-                <span style={{fontSize:11,color:"#10b981",fontWeight:700}}>{totalPtsAll>0?Math.round(totalPtsHome/totalPtsAll*100):0}%</span>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                <span style={{fontSize:11,color:"#f59e0b"}}>🔀 Visiting</span>
-                <span style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>{totalPtsAll>0?Math.round(totalPtsVisiting/totalPtsAll*100):0}%</span>
-              </div>
-              <SplitBar homePct={totalPtsAll>0?Math.round(totalPtsHome/totalPtsAll*100):0} visitingPct={totalPtsAll>0?Math.round(totalPtsVisiting/totalPtsAll*100):0}/>
-            </div>
+          <div style={{fontSize:12,color:"#445566",marginBottom:14}}>
+            Points Split — {isAll?"All Merchants":selectedMerchant?.name}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}>
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:11,color:"#10b981"}}>🏠 Home</span>
+              <span style={{fontSize:11,color:"#10b981",fontWeight:700}}>{kpiPtsAll>0?Math.round(kpiPtsHome/kpiPtsAll*100):0}%</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <span style={{fontSize:11,color:"#f59e0b"}}>🔀 Visiting</span>
+              <span style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>{kpiPtsAll>0?Math.round(kpiPtsVisiting/kpiPtsAll*100):0}%</span>
+            </div>
+            <SplitBar homePct={kpiPtsAll>0?Math.round(kpiPtsHome/kpiPtsAll*100):0}
+                      visitingPct={kpiPtsAll>0?Math.round(kpiPtsVisiting/kpiPtsAll*100):0}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             <div style={{background:"#0d2a1a",borderRadius:8,padding:"8px 10px"}}>
-              <div style={{fontSize:14,fontWeight:800,color:"#10b981"}}>{totalPtsHome.toLocaleString()}</div>
+              <div style={{fontSize:15,fontWeight:800,color:"#10b981"}}>{kpiPtsHome.toLocaleString()}</div>
               <div style={{fontSize:9,color:"#4a7a4a",textTransform:"uppercase",letterSpacing:.5}}>Home pts</div>
             </div>
             <div style={{background:"#1a1208",borderRadius:8,padding:"8px 10px"}}>
-              <div style={{fontSize:14,fontWeight:800,color:"#f59e0b"}}>{totalPtsVisiting.toLocaleString()}</div>
+              <div style={{fontSize:15,fontWeight:800,color:"#f59e0b"}}>{kpiPtsVisiting.toLocaleString()}</div>
               <div style={{fontSize:9,color:"#7a6a3a",textTransform:"uppercase",letterSpacing:.5}}>Visiting pts</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Merchant filter */}
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-        <span style={{fontSize:11,color:"#445566",textTransform:"uppercase",letterSpacing:.8}}>Filter:</span>
-        {[{code:"all",name:"All"},...merchants].map(m=>(
-          <button key={m.code} onClick={()=>setSelCode(m.code)}
-            style={{padding:"5px 14px",borderRadius:8,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
-              background:selCode===m.code?"linear-gradient(135deg,#10b981,#059669)":"#0e1420",
-              color:selCode===m.code?"#000":"#5566aa"}}>
-            {m.code==="all"?"All Merchants":m.code}
-          </button>
-        ))}
-      </div>
+      {/* Overall insight when all selected */}
+      {isAll&&kpiSpenders>0&&<div style={{marginBottom:20,padding:"14px 18px",borderRadius:10,
+        background:kpiVisitingPct>=50?"#1a1000":"#0a1a0a",
+        border:`1px solid ${kpiVisitingPct>=50?"#3a2800":"#1a3a1a"}`}}>
+        <span style={{fontSize:13,color:kpiVisitingPct>=50?"#f59e0b":"#4ade80",lineHeight:1.6}}>
+          {kpiVisitingPct>=50
+            ?`💡 Overall, ${kpiVisitingPct}% of point-earning members are spending at merchants they didn't register with. This indicates strong cross-merchant engagement — consider referral incentives to improve registration attribution.`
+            :`✓ ${kpiHomePct}% of members earn points at their registered merchant. Cross-merchant spend is ${kpiVisitingPct}%, showing healthy loyalty to home merchants.`}
+        </span>
+      </div>}
 
-      {/* Per-merchant breakdown cards */}
+      {/* Per-merchant detail cards */}
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         {filtered.map(m=>(
           <div key={m.id} className="card" style={{padding:"20px 22px"}}>
@@ -2708,22 +2764,24 @@ function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary
               </div>
               {m.totalSpenders===0
                 ?<div style={{fontSize:12,color:"#2a3a55",fontStyle:"italic"}}>No point activity yet</div>
-                :<div style={{display:"flex",gap:10}}>
-                  <Donut pct={m.homePct} size={64} color="#10b981"/>
-                  <Donut pct={m.visitingPct} size={64} color="#f59e0b"/>
+                :<div style={{display:"flex",gap:10,alignItems:"center"}}>
+                  <div style={{textAlign:"center"}}>
+                    <Donut pct={m.homePct} size={64} color="#10b981"/>
+                    <div style={{fontSize:9,color:"#4a7a4a",marginTop:2}}>Home</div>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <Donut pct={m.visitingPct} size={64} color="#f59e0b"/>
+                    <div style={{fontSize:9,color:"#7a6a3a",marginTop:2}}>Visiting</div>
+                  </div>
                 </div>
               }
             </div>
 
             {m.totalSpenders>0&&<div>
-              {/* Split bar */}
               <div style={{marginBottom:10}}>
                 <SplitBar homePct={m.homePct} visitingPct={m.visitingPct}/>
               </div>
-
-              {/* Legend + stats */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                {/* Home */}
                 <div style={{background:"#0d2a1a",borderRadius:10,padding:"12px 14px",border:"1px solid #1a4a2a"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                     <div>
@@ -2732,46 +2790,30 @@ function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary
                     </div>
                     <div style={{fontSize:22,fontWeight:800,color:"#10b981"}}>{m.homePct}%</div>
                   </div>
-                  <div style={{display:"flex",gap:10}}>
-                    <div>
-                      <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>{m.regAndSpentHere}</div>
-                      <div style={{fontSize:9,color:"#4a7a4a"}}>members</div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>{m.ptsFromReg.toLocaleString()}</div>
-                      <div style={{fontSize:9,color:"#4a7a4a"}}>pts awarded</div>
-                    </div>
+                  <div style={{display:"flex",gap:12}}>
+                    <div><div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>{m.regAndSpentHere}</div><div style={{fontSize:9,color:"#4a7a4a"}}>members</div></div>
+                    <div><div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>{m.ptsFromReg.toLocaleString()}</div><div style={{fontSize:9,color:"#4a7a4a"}}>pts awarded</div></div>
                   </div>
                 </div>
-
-                {/* Visiting */}
                 <div style={{background:"#1a1208",borderRadius:10,padding:"12px 14px",border:"1px solid #3a2a12"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                     <div>
                       <div style={{fontSize:10,color:"#8a6a2a",fontWeight:700,letterSpacing:.8,textTransform:"uppercase"}}>🔀 Not Registered Here</div>
-                      <div style={{fontSize:10,color:"#5a4a1a",marginTop:2}}>Spent but registered elsewhere</div>
+                      <div style={{fontSize:10,color:"#5a4a1a",marginTop:2}}>Registered elsewhere</div>
                     </div>
                     <div style={{fontSize:22,fontWeight:800,color:"#f59e0b"}}>{m.visitingPct}%</div>
                   </div>
-                  <div style={{display:"flex",gap:10}}>
-                    <div>
-                      <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{m.notRegButSpentHere}</div>
-                      <div style={{fontSize:9,color:"#8a6a2a"}}>members</div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{m.ptsFromVisiting.toLocaleString()}</div>
-                      <div style={{fontSize:9,color:"#8a6a2a"}}>pts awarded</div>
-                    </div>
+                  <div style={{display:"flex",gap:12}}>
+                    <div><div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{m.notRegButSpentHere}</div><div style={{fontSize:9,color:"#8a6a2a"}}>members</div></div>
+                    <div><div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{m.ptsFromVisiting.toLocaleString()}</div><div style={{fontSize:9,color:"#8a6a2a"}}>pts awarded</div></div>
                   </div>
                 </div>
               </div>
-
-              {/* Insight callout */}
               {m.visitingPct>=50&&<div style={{marginTop:10,background:"#1a1000",border:"1px solid #3a2800",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#f59e0b",lineHeight:1.6}}>
-                💡 <strong>{m.visitingPct}%</strong> of members earning points here are not registered under <strong>{m.name}</strong>. Consider a referral incentive to convert visiting members.
+                💡 <strong>{m.visitingPct}%</strong> of members earning here are not registered under <strong>{m.name}</strong>. Consider a referral incentive.
               </div>}
               {m.visitingPct>0&&m.visitingPct<50&&<div style={{marginTop:10,background:"#0a1a0a",border:"1px solid #1a3a1a",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#4ade80",lineHeight:1.6}}>
-                ✓ Majority of spenders are registered members. <strong>{m.visitingPct}%</strong> are cross-merchant visitors.
+                ✓ Majority of spenders ({m.homePct}%) are registered members. <strong>{m.visitingPct}%</strong> are visiting from other merchants.
               </div>}
             </div>}
           </div>
