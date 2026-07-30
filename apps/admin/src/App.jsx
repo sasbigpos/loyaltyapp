@@ -2087,6 +2087,7 @@ function MerchantsPage({ctx}){
   const [editing,setEditing]=useState(null);
   const [err,setErr]=useState("");
   const [saving,setSaving]=useState(false);
+  const [qrMerchant,setQrMerchant]=useState(null); // merchant to show QR for
 
   const saveMerchants=async(next)=>{
     setSaving(true);
@@ -2217,7 +2218,8 @@ function MerchantsPage({ctx}){
                     </div>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
-                    <button className="btn-g" onClick={()=>{setEditing({...m});setErr("");}} style={{fontSize:11,padding:"5px 10px"}}>✏️</button>
+                    <button className="btn-g" onClick={()=>setQrMerchant(m)} style={{fontSize:11,padding:"5px 10px"}}>📱 QR</button>
+                    <button className="btn-g" onClick={()=>{setEditing({...m});setErr("");}} style={{fontSize:11,padding:"5px 10px"}}>✏️ Edit</button>
                     <button className="btn-g" onClick={()=>toggleActive(m.id)} style={{fontSize:11,padding:"5px 10px"}}>{m.active===false?"On":"Off"}</button>
                     {count===0&&<button className="btn-d" onClick={()=>deleteMerchant(m.id)} style={{fontSize:11,padding:"5px 10px"}}>✕</button>}
                   </div>
@@ -2230,6 +2232,9 @@ function MerchantsPage({ctx}){
 
       {/* ── REPORT TAB ── */}
       {tab==="report"&&<MerchantReport members={members} merchants={merchants} tiers={ctx.tiers} totalRegistered={totalRegistered} untracked={untracked}/>}
+
+      {/* QR Code Modal */}
+      {qrMerchant&&<QRModal merchant={qrMerchant} onClose={()=>setQrMerchant(null)}/>}
     </div>
   );
 }
@@ -2818,6 +2823,89 @@ function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary
             </div>}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+// ─── QR MODAL ────────────────────────────────────────────────────────────────
+function QRModal({merchant,onClose}){
+  const baseUrl=(()=>{
+    try{
+      const u=window.location.href;
+      // Get the member portal URL by replacing /admin/ with /member/
+      return u.replace(/\/admin\/?.*$/,"").replace(/\/loyaltyapp\/?.*$/,"/loyaltyapp/member/")
+             ||"https://sasbigpos.github.io/loyaltyapp/member/";
+    }catch{return "https://sasbigpos.github.io/loyaltyapp/member/";}
+  })();
+  const regUrl=`${baseUrl}?mc=${merchant.code}`;
+  // Use QR Server API - free, no key needed
+  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(regUrl)}&bgcolor=0d2a1a&color=10b981&qzone=2`;
+
+  const copyUrl=()=>{
+    navigator.clipboard?.writeText(regUrl).then(()=>alert("Registration link copied!")).catch(()=>{});
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",
+      alignItems:"center",justifyContent:"center",zIndex:9999,padding:20}}
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="si card" style={{padding:"32px 28px",maxWidth:400,width:"100%",
+        background:"#0e1420",border:"1px solid #1e2535",position:"relative"}}>
+        <button onClick={onClose}
+          style={{position:"absolute",top:16,right:16,background:"#1a2535",border:"none",
+            color:"#5566aa",borderRadius:"50%",width:32,height:32,fontSize:16,cursor:"pointer"}}>✕</button>
+
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#e8eaf0",fontWeight:700,marginBottom:4}}>
+            Registration QR Code
+          </div>
+          <div style={{fontSize:12,color:"#445566"}}>Scan to register under this merchant</div>
+        </div>
+
+        {/* Merchant info */}
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,
+          padding:"12px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
+          <div style={{width:40,height:40,borderRadius:8,background:"#0a1a0a",
+            display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981"}}>{merchant.code}</span>
+          </div>
+          <div>
+            <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{merchant.name}</div>
+            {merchant.address&&<div style={{fontSize:11,color:"#4a7a4a",marginTop:1}}>📍 {merchant.address}</div>}
+          </div>
+        </div>
+
+        {/* QR Code */}
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{display:"inline-block",padding:16,background:"#0d2a1a",borderRadius:16,border:"2px solid #1a4a2a"}}>
+            <img src={qrSrc} alt={`QR for ${merchant.name}`} width={200} height={200}
+              style={{display:"block",borderRadius:8}}/>
+          </div>
+        </div>
+
+        {/* URL display */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:10,color:"#445566",textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Registration Link</div>
+          <div style={{background:"#080c12",borderRadius:8,padding:"10px 12px",border:"1px solid #1e2535",
+            fontSize:11,color:"#4a7a5a",wordBreak:"break-all",lineHeight:1.5,fontFamily:"monospace"}}>
+            {regUrl}
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <button className="btn" onClick={copyUrl}
+            style={{fontSize:13,padding:"11px"}}>📋 Copy Link</button>
+          <button className="btn-g" onClick={()=>{
+            const link=document.createElement("a");
+            link.href=qrSrc.replace("240x240","600x600");
+            link.download=`QR-${merchant.code}.png`;
+            link.click();
+          }} style={{fontSize:13,padding:"11px"}}>⬇ Download QR</button>
+        </div>
+
+        <div style={{marginTop:14,fontSize:11,color:"#2a3a55",textAlign:"center",lineHeight:1.6}}>
+          When a member scans this QR, they are taken directly to the registration form with <span style={{color:"#10b981",fontFamily:"monospace",fontWeight:700}}>{merchant.code}</span> pre-filled and hidden.
+        </div>
       </div>
     </div>
   );
