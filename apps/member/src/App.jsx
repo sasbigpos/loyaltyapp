@@ -85,7 +85,9 @@ export default function MemberApp(){
   const [tiers,     setTiers]        = useState(DEFAULT_TIERS);
   const [refLevels, setRefLevels]    = useState(DEFAULT_REF);
   const [rewards,   setRewards]      = useState(REWARDS_CATALOG);
-  const [screen,    setScreen]       = useState("login"); // login | portal
+  // Read merchant code from URL query param ?mc=CODE (set by QR code)
+  const urlMc=(()=>{try{return new URLSearchParams(window.location.search).get("mc")||"";}catch{return "";}})();
+  const [screen,    setScreen]       = useState(urlMc?"register":"login"); // login | register | portal
   const [memberId,  setMemberId]     = useState(null);
   const [loading,   setLoading]      = useState(true);
   const [syncing,   setSyncing]      = useState(false);
@@ -179,8 +181,14 @@ export default function MemberApp(){
         {/* NOTIFICATION */}
         {notif&&<div className="sans" style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:notif.type==="success"?"#1a3a1a":"#3a1a1a",color:notif.type==="success"?"#86efac":"#fca5a5",padding:"12px 20px",borderRadius:99,fontSize:13,fontWeight:500,zIndex:9999,animation:"notifIn .4s cubic-bezier(.34,1.56,.64,1)",whiteSpace:"nowrap",boxShadow:"0 8px 32px #00000033",maxWidth:"calc(100vw - 32px)",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis"}}>{notif.msg}</div>}
 
-        {screen==="login"
-          ? <LoginScreen members={members} tiers={tiers} onLogin={id=>{setMemberId(id);setScreen("portal");}}/>
+        {screen==="register"
+          ? <RegisterScreen
+              members={members} tiers={tiers} appConfig={appConfig} merchantCode={urlMc}
+              setMembers={setMembersState}
+              onSuccess={(id)=>{setMemberId(id);setScreen("portal");}}
+              onBack={()=>setScreen("login")}/>
+          : screen==="login"
+          ? <LoginScreen members={members} tiers={tiers} onLogin={id=>{setMemberId(id);setScreen("portal");}} onRegister={()=>setScreen("register")}/>
           : member
             ? <Portal key={memberId} member={member} members={members} tiers={tiers} refLevels={refLevels} rewards={rewards} setMembers={setMembers} showNotif={showNotif} syncing={syncing} lastSync={lastSync} onLogout={()=>{setMemberId(null);setScreen("login");}}/>
             : <div style={{padding:40,textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:"#9a8a7a"}}>Member not found.<br/><button onClick={()=>setScreen("login")} style={{marginTop:12,background:"#f5c842",color:"#1a1208",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Back to Login</button></div>
@@ -191,7 +199,7 @@ export default function MemberApp(){
 }
 
 // ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
-function LoginScreen({members,tiers,onLogin}){
+function LoginScreen({members,tiers,onLogin,onRegister}){
   const [step,setStep]=useState("phone"); // "phone" | "pin"
   const [phone,setPhone]=useState("");
   const [pin,setPin]=useState("");
@@ -316,7 +324,14 @@ function LoginScreen({members,tiers,onLogin}){
           Continue →
         </button>
       </div>
-      <div className="fu" style={{marginTop:24,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#3a2a12",textAlign:"center",animationDelay:".2s"}}>Real-time sync with Admin Portal via Firebase</div>
+      <div style={{marginTop:16,textAlign:"center"}}>
+        <button onClick={onRegister} style={{background:"none",border:"none",cursor:"pointer",
+          fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#8a6a3a",textDecoration:"underline",
+          textUnderlineOffset:3}}>
+          New member? Register here
+        </button>
+      </div>
+      <div className="fu" style={{marginTop:12,fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#3a2a12",textAlign:"center",animationDelay:".2s"}}>Real-time sync with Admin Portal via Firebase</div>
     </div>
   );
 }
@@ -695,4 +710,127 @@ function ProfileTab({member,tier,nextTier,tiers,members,refLevels,downline,setMe
       </button>
     </div>
   </div>;
+}
+
+// ─── REGISTER SCREEN ─────────────────────────────────────────────────────────
+function RegisterScreen({members,tiers,appConfig,merchantCode,setMembers,onSuccess,onBack}){
+  const [form,setForm]=useState({name:"",phone:"",pin:"",pin2:""});
+  const [err,setErr]=useState({});
+  const [saving,setSaving]=useState(false);
+
+  const MONTHS_L=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const today=()=>new Date().toISOString().slice(0,10);
+  const genId=()=>Math.random().toString(36).slice(2,10);
+  const fmtPhone=(v)=>{const d=v.replace(/\D/g,"").slice(0,11);if(d.length<=3)return d;if(d.length<=7)return d.slice(0,3)+"-"+d.slice(3);return d.slice(0,3)+"-"+d.slice(3,7)+"-"+d.slice(7);};
+
+  // Welcome points config
+  const welcomeEnabled=appConfig?.welcomeEnabled!==false;
+  const welcomePts=welcomeEnabled?(parseInt(appConfig?.welcomePts)||100):0;
+
+  const submit=async()=>{
+    const e={};
+    if(!form.name.trim())e.name="Full name is required.";
+    if(form.phone.replace(/\D/g,"").length<10)e.phone="Valid mobile number required.";
+    if(members.find(m=>m.phone.replace(/\D/g,"")===form.phone.replace(/\D/g,"")))e.phone="This number is already registered.";
+    if(!form.pin||!/^\d{4}$/.test(form.pin))e.pin="PIN must be exactly 4 digits.";
+    if(form.pin!==form.pin2)e.pin2="PINs do not match.";
+    if(Object.keys(e).length){setErr(e);return;}
+    setSaving(true);
+    try{
+      const id=genId();
+      const code=form.name.trim().split(" ")[0].toUpperCase()+"-"+Math.floor(1000+Math.random()*9000);
+      const txns=welcomeEnabled?[{id:genId(),pts:welcomePts,icon:"⭐",label:"Welcome Bonus",date:today(),type:"earn"}]:[];
+      const newMember={
+        id,name:form.name.trim(),phone:form.phone,pin:form.pin,
+        birthday:"",merchantCode:merchantCode||"",locationCode:"",
+        points:welcomePts,referredBy:null,
+        joinedAt:today(),referralCode:code,transactions:txns,
+      };
+      // Save to Firestore via window.storage (same key as admin)
+      const existing=members;
+      const updated=[...existing,newMember];
+      await window.storage.set("lc:members",JSON.stringify(updated),true);
+      setMembers(updated);
+      onSuccess(id);
+    }catch(err){
+      setErr({submit:"Registration failed. Please try again."});
+    }
+    setSaving(false);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
+      justifyContent:"center",padding:"32px 24px",
+      background:"linear-gradient(170deg,#1a1208 0%,#0d0a06 50%,#1a1208 100%)",
+      position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:"-15%",right:"-20%",width:300,height:300,borderRadius:"50%",background:"radial-gradient(ellipse,#10b98114,transparent 70%)"}}/>
+      <div style={{position:"absolute",bottom:"-15%",left:"-20%",width:280,height:280,borderRadius:"50%",background:"radial-gradient(ellipse,#f5c84210,transparent 70%)"}}/>
+
+      {/* Logo */}
+      <div className="fu" style={{textAlign:"center",marginBottom:32}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:40,fontWeight:700,
+          color:"#10b981",letterSpacing:-1,lineHeight:1}}>B LOYALTY</div>
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#5a4a2a",
+          letterSpacing:3,marginTop:6,textTransform:"uppercase"}}>Member Registration</div>
+        {merchantCode&&<div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
+          background:"#0d2a1a",border:"1px solid #1a4a2a",borderRadius:99,padding:"4px 14px"}}>
+          <span style={{fontSize:11,color:"#4ade80"}}>✓ Merchant:</span>
+          <span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:"#10b981"}}>{merchantCode}</span>
+        </div>}
+      </div>
+
+      <div className="si" style={{width:"100%",maxWidth:420,background:"#14100a",
+        border:"1px solid #3a2a12",borderRadius:22,padding:"28px 24px"}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"#f7f2eb",fontWeight:600,marginBottom:4}}>Create your account</div>
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#6a5a3a",marginBottom:22}}>
+          {welcomeEnabled?`Join and receive ${welcomePts} welcome points!`:"Join our loyalty programme."}
+        </div>
+
+        {/* Form fields */}
+        {[
+          {key:"name",   label:"Full Name",     placeholder:"e.g. Ahmad Razali",  type:"text",   mode:"text"},
+          {key:"phone",  label:"Mobile Number", placeholder:"012-3456-789",        type:"tel",    mode:"tel"},
+          {key:"pin",    label:"Create PIN",    placeholder:"4-digit PIN",          type:"password",mode:"numeric",maxLen:4},
+          {key:"pin2",   label:"Confirm PIN",   placeholder:"Repeat PIN",           type:"password",mode:"numeric",maxLen:4},
+        ].map(({key,label,placeholder,type,mode,maxLen})=>(
+          <div key={key} style={{marginBottom:14}}>
+            <label style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:600,
+              color:"#8a6a3a",letterSpacing:1,textTransform:"uppercase",display:"block",marginBottom:6}}>{label}</label>
+            <input
+              type={type} inputMode={mode} maxLength={maxLen||undefined}
+              placeholder={placeholder} value={form[key]}
+              onChange={e=>{
+                let v=e.target.value;
+                if(key==="phone")v=fmtPhone(v);
+                if(key==="pin"||key==="pin2")v=v.replace(/\D/g,"").slice(0,4);
+                setForm(f=>({...f,[key]:v}));
+                setErr(er=>({...er,[key]:""}));
+              }}
+              onKeyDown={e=>e.key==="Enter"&&submit()}
+              style={{width:"100%",background:"#0d0a06",border:`1px solid ${err[key]?"#7a2a2a":"#3a2a12"}`,
+                borderRadius:12,color:"#f7f2eb",padding:"13px 16px",fontSize:16,
+                fontFamily:"'DM Sans',sans-serif",outline:"none"}}/>
+            {err[key]&&<div style={{color:"#f87171",fontSize:12,marginTop:4,fontFamily:"'DM Sans',sans-serif"}}>{err[key]}</div>}
+          </div>
+        ))}
+
+        {err.submit&&<div style={{color:"#f87171",fontSize:13,marginBottom:14,background:"#2a0d0d",
+          borderRadius:8,padding:"10px 14px",fontFamily:"'DM Sans',sans-serif"}}>{err.submit}</div>}
+
+        <button onClick={submit} disabled={saving}
+          style={{width:"100%",padding:"15px",background:"linear-gradient(135deg,#10b981,#059669)",
+            borderRadius:14,fontSize:15,fontWeight:700,color:"#fff",fontFamily:"'DM Sans',sans-serif",
+            letterSpacing:.3,border:"none",marginTop:6,opacity:saving?0.6:1,
+            boxShadow:"0 4px 20px #10b98144"}}>
+          {saving?"Creating account…":"Create Account →"}
+        </button>
+
+        <button onClick={onBack}
+          style={{width:"100%",padding:"10px",background:"transparent",border:"none",
+            marginTop:10,fontSize:13,color:"#4a3a1a",fontFamily:"'DM Sans',sans-serif",cursor:"pointer"}}>
+          ← Already a member? Login
+        </button>
+      </div>
+    </div>
+  );
 }
