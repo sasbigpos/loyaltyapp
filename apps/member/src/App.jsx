@@ -86,8 +86,17 @@ export default function MemberApp(){
   const [refLevels, setRefLevels]    = useState(DEFAULT_REF);
   const [rewards,   setRewards]      = useState(REWARDS_CATALOG);
   // Read merchant code from URL query param ?mc=CODE (set by QR code)
-  const urlMc=(()=>{try{return new URLSearchParams(window.location.search).get("mc")||"";}catch{return "";}})();
+  // Read merchant code from URL ?mc=CODE — set by merchant QR code
+  const urlMc=(()=>{
+    try{
+      // Handle both ?mc=X and #/path?mc=X patterns
+      const search=window.location.search||window.location.hash.split("?")[1]||"";
+      return new URLSearchParams(search).get("mc")||"";
+    }catch{return "";}
+  })();
   const [screen,    setScreen]       = useState(urlMc?"register":"login"); // login | register | portal
+  // Keep urlMc in a ref so it survives re-renders
+  const urlMcRef=useRef(urlMc);
   const [memberId,  setMemberId]     = useState(null);
   const [loading,   setLoading]      = useState(true);
   const [syncing,   setSyncing]      = useState(false);
