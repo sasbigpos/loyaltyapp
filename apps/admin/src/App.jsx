@@ -2829,17 +2829,22 @@ function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary
 }
 // ─── QR MODAL ────────────────────────────────────────────────────────────────
 function QRModal({merchant,onClose}){
-  const baseUrl=(()=>{
+  // Build member portal URL from current admin URL
+  const regUrl=(()=>{
     try{
-      const u=window.location.href;
-      // Get the member portal URL by replacing /admin/ with /member/
-      return u.replace(/\/admin\/?.*$/,"").replace(/\/loyaltyapp\/?.*$/,"/loyaltyapp/member/")
-             ||"https://sasbigpos.github.io/loyaltyapp/member/";
-    }catch{return "https://sasbigpos.github.io/loyaltyapp/member/";}
+      const loc=window.location;
+      // Replace /admin anywhere in path with /member
+      const memberPath=loc.pathname.replace(/\/admin(\/.*)?$/,"/member/");
+      return loc.origin+memberPath+"?mc="+merchant.code;
+    }catch{
+      return "https://sasbigpos.github.io/loyaltyapp/member/?mc="+merchant.code;
+    }
   })();
-  const regUrl=`${baseUrl}?mc=${merchant.code}`;
   // Use QR Server API - free, no key needed
-  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(regUrl)}&bgcolor=0d2a1a&color=10b981&qzone=2`;
+  // QR code via free API - bgcolor/color as hex without #
+  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(regUrl)}&bgcolor=ffffff&color=000000&qzone=2&format=png`;
+  // Fallback: use Google Charts QR if first fails
+  const qrSrcFallback=`https://chart.googleapis.com/chart?chs=240x240&cht=qr&chl=${encodeURIComponent(regUrl)}&choe=UTF-8`;
 
   const copyUrl=()=>{
     navigator.clipboard?.writeText(regUrl).then(()=>alert("Registration link copied!")).catch(()=>{});
@@ -2877,9 +2882,10 @@ function QRModal({merchant,onClose}){
 
         {/* QR Code */}
         <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{display:"inline-block",padding:16,background:"#0d2a1a",borderRadius:16,border:"2px solid #1a4a2a"}}>
+          <div style={{display:"inline-block",padding:16,background:"#ffffff",borderRadius:16,border:"2px solid #1a4a2a"}}>
             <img src={qrSrc} alt={`QR for ${merchant.name}`} width={200} height={200}
-              style={{display:"block",borderRadius:8}}/>
+              onError={e=>{e.target.onerror=null;e.target.src=qrSrcFallback;}}
+              style={{display:"block",borderRadius:8,background:"#fff"}}/>
           </div>
         </div>
 
@@ -2897,7 +2903,7 @@ function QRModal({merchant,onClose}){
             style={{fontSize:13,padding:"11px"}}>📋 Copy Link</button>
           <button className="btn-g" onClick={()=>{
             const link=document.createElement("a");
-            link.href=qrSrc.replace("240x240","600x600");
+            link.href=`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(regUrl)}&bgcolor=ffffff&color=000000&qzone=2&format=png`;
             link.download=`QR-${merchant.code}.png`;
             link.click();
           }} style={{fontSize:13,padding:"11px"}}>⬇ Download QR</button>
