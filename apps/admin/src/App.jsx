@@ -2834,7 +2834,8 @@ function QRModal({merchant,onClose}){
   const [editing,setEditing]=useState(false);
   const [copied,setCopied]=useState(false);
 
-  const regUrl=customUrl.replace(/\/?$/,"")+"/?mc="+merchant.code;
+  // Clean URL: remove trailing slashes, add exactly one, then query string
+  const regUrl=customUrl.replace(/\/+$/,"")+"/?mc="+merchant.code;
   const qrSrc="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="+encodeURIComponent(regUrl)+"&bgcolor=ffffff&color=000000&qzone=2&format=png";
   const qrSrcFallback="https://chart.googleapis.com/chart?chs=240x240&cht=qr&chl="+encodeURIComponent(regUrl)+"&choe=UTF-8";
 
