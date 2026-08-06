@@ -9,7 +9,7 @@ async function getSubscriber() {
 }
 
 // ─── STORAGE KEYS (must match Admin app exactly) ──────────────────────────────
-const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", rewards:"lc:rewards" };
+const KEYS = { members:"lc:members", tiers:"lc:tiers", refLevels:"lc:refLevels", rewards:"lc:rewards", config:"lc:config" };
 
 const DEFAULT_TIERS = [
   { id:"bronze",   name:"Bronze",   minPoints:0,    color:"#cd7f32", bg:"#2a1a0e", icon:"🥉", multiplier:1.0  },
@@ -47,19 +47,21 @@ function getDownline(members,rootId,maxDepth){
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
 async function loadAll(){
   try{
-    const [mr,tr,rr,rwR]=await Promise.all([
+    const [mr,tr,rr,rwR,cfgR]=await Promise.all([
       window.storage.get(KEYS.members,  true).catch(()=>null),
       window.storage.get(KEYS.tiers,    true).catch(()=>null),
       window.storage.get(KEYS.refLevels,true).catch(()=>null),
       window.storage.get(KEYS.rewards,  true).catch(()=>null),
+      window.storage.get(KEYS.config,   true).catch(()=>null),
     ]);
     return {
       members:   mr?JSON.parse(mr.value):null,
       tiers:     tr?JSON.parse(tr.value):DEFAULT_TIERS,
       refLevels: rr?JSON.parse(rr.value):DEFAULT_REF,
       rewards:   rwR?JSON.parse(rwR.value):null,
+      config:    cfgR?JSON.parse(cfgR.value):null,
     };
-  }catch{return{members:null,tiers:DEFAULT_TIERS,refLevels:DEFAULT_REF,rewards:null};}
+  }catch{return{members:null,tiers:DEFAULT_TIERS,refLevels:DEFAULT_REF,rewards:null,config:null};}
 }
 async function saveMembers(members){try{await window.storage.set(KEYS.members,JSON.stringify(members),true);}catch(e){console.error(e);}}
 
@@ -85,6 +87,7 @@ export default function MemberApp(){
   const [tiers,     setTiers]        = useState(DEFAULT_TIERS);
   const [refLevels, setRefLevels]    = useState(DEFAULT_REF);
   const [rewards,   setRewards]      = useState(REWARDS_CATALOG);
+  const [appConfig, setAppConfig]    = useState({welcomeEnabled:true,welcomePts:100});
   // Read merchant code from URL query param ?mc=CODE (set by QR code)
   // Read merchant code from URL ?mc=CODE — set by merchant QR code
   const urlMc=(()=>{
@@ -122,11 +125,12 @@ export default function MemberApp(){
     const bootstrap = async () => {
       // 1. One-shot initial load — use defaults if Firestore is empty
       try {
-        const [mr,tr,rr,rwR]=await Promise.all([
+        const [mr,tr,rr,rwR,cfgR]=await Promise.all([
           window.storage.get(KEYS.members,  true).catch(()=>null),
           window.storage.get(KEYS.tiers,    true).catch(()=>null),
           window.storage.get(KEYS.refLevels,true).catch(()=>null),
           window.storage.get(KEYS.rewards,  true).catch(()=>null),
+          window.storage.get(KEYS.config,   true).catch(()=>null),
         ]);
         // If Firestore has data, use it; otherwise fall back to defaults
         // (Admin app will seed Firestore on its first run)
@@ -134,6 +138,7 @@ export default function MemberApp(){
         if(tr) setTiers(JSON.parse(tr.value));
         if(rr) setRefLevels(JSON.parse(rr.value));
         if(rwR) setRewards(JSON.parse(rwR.value));
+        if(cfgR) setAppConfig(JSON.parse(cfgR.value));
       } catch {}
       setLoading(false); setLastSync(new Date());
 
@@ -146,6 +151,7 @@ export default function MemberApp(){
           sub(KEYS.tiers,     v => setTiers(JSON.parse(v))),
           sub(KEYS.refLevels, v => setRefLevels(JSON.parse(v))),
           sub(KEYS.rewards,   v => setRewards(JSON.parse(v))),
+          sub(KEYS.config,    v => setAppConfig(JSON.parse(v))),
         ];
       }
     };
