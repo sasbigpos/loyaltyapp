@@ -2829,127 +2829,82 @@ function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary
 }
 // ─── QR MODAL ────────────────────────────────────────────────────────────────
 function QRModal({merchant,onClose}){
-  const MEMBER_BASE="https://sasbigpos.github.io/loyaltyapp/member/";
-  const [customUrl,setCustomUrl]=useState(MEMBER_BASE);
-  const [editing,setEditing]=useState(false);
-  const [copied,setCopied]=useState(false);
-
-  // Clean URL: remove trailing slashes, add exactly one, then query string
-  const regUrl=customUrl.replace(/\/+$/,"")+"/?mc="+merchant.code;
-  const qrSrc="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="+encodeURIComponent(regUrl)+"&bgcolor=ffffff&color=000000&qzone=2&format=png";
-  const qrSrcFallback="https://chart.googleapis.com/chart?chs=240x240&cht=qr&chl="+encodeURIComponent(regUrl)+"&choe=UTF-8";
+  const baseUrl=(()=>{
+    try{
+      const u=window.location.href;
+      // Get the member portal URL by replacing /admin/ with /member/
+      return u.replace(/\/admin\/?.*$/,"").replace(/\/loyaltyapp\/?.*$/,"/loyaltyapp/member/")
+             ||"https://sasbigpos.github.io/loyaltyapp/member/";
+    }catch{return "https://sasbigpos.github.io/loyaltyapp/member/";}
+  })();
+  const regUrl=`${baseUrl}?mc=${merchant.code}`;
+  // Use QR Server API - free, no key needed
+  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(regUrl)}&bgcolor=0d2a1a&color=10b981&qzone=2`;
 
   const copyUrl=()=>{
-    navigator.clipboard?.writeText(regUrl)
-      .then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);})
-      .catch(()=>{
-        // Fallback for browsers without clipboard API
-        const ta=document.createElement("textarea");
-        ta.value=regUrl;document.body.appendChild(ta);ta.select();
-        document.execCommand("copy");document.body.removeChild(ta);
-        setCopied(true);setTimeout(()=>setCopied(false),2000);
-      });
+    navigator.clipboard?.writeText(regUrl).then(()=>alert("Registration link copied!")).catch(()=>{});
   };
 
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",
       alignItems:"center",justifyContent:"center",zIndex:9999,padding:20}}
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="si card" style={{padding:"28px",maxWidth:420,width:"100%",
-        background:"#0e1420",border:"1px solid #1e2535",position:"relative",maxHeight:"90vh",overflowY:"auto"}}>
+      <div className="si card" style={{padding:"32px 28px",maxWidth:400,width:"100%",
+        background:"#0e1420",border:"1px solid #1e2535",position:"relative"}}>
         <button onClick={onClose}
-          style={{position:"absolute",top:14,right:14,background:"#1a2535",border:"none",
-            color:"#5566aa",borderRadius:"50%",width:30,height:30,fontSize:15,cursor:"pointer",lineHeight:"30px"}}>✕</button>
+          style={{position:"absolute",top:16,right:16,background:"#1a2535",border:"none",
+            color:"#5566aa",borderRadius:"50%",width:32,height:32,fontSize:16,cursor:"pointer"}}>✕</button>
 
-        <div style={{textAlign:"center",marginBottom:18}}>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#e8eaf0",fontWeight:700,marginBottom:4}}>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#e8eaf0",fontWeight:700,marginBottom:4}}>
             Registration QR Code
           </div>
-          <div style={{fontSize:12,color:"#445566"}}>Member scans this to register under {merchant.name}</div>
+          <div style={{fontSize:12,color:"#445566"}}>Scan to register under this merchant</div>
         </div>
 
-        {/* Merchant badge */}
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,
-          padding:"10px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
-          <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981",
-            background:"#0a1a0a",padding:"3px 8px",borderRadius:6}}>{merchant.code}</span>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:700,color:"#ccd",fontSize:13}}>{merchant.name}</div>
-            {merchant.address&&<div style={{fontSize:10,color:"#4a7a4a"}}>📍 {merchant.address}</div>}
+        {/* Merchant info */}
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,
+          padding:"12px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
+          <div style={{width:40,height:40,borderRadius:8,background:"#0a1a0a",
+            display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981"}}>{merchant.code}</span>
           </div>
-        </div>
-
-        {/* Base URL config */}
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:10,color:"#445566",textTransform:"uppercase",letterSpacing:.8,marginBottom:6,
-            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span>Member Portal Base URL</span>
-            <button onClick={()=>setEditing(e=>!e)}
-              style={{background:"none",border:"none",color:"#5566aa",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>
-              {editing?"Done":"Edit"}
-            </button>
-          </div>
-          {editing
-            ?<input className="inp" value={customUrl} onChange={e=>setCustomUrl(e.target.value)}
-               style={{fontSize:12,padding:"8px 10px"}}
-               placeholder="https://sasbigpos.github.io/loyaltyapp/member/"/>
-            :<div style={{background:"#080c12",borderRadius:8,padding:"8px 12px",border:"1px solid #1e2535",
-               fontSize:11,color:"#4a7a5a",wordBreak:"break-all",fontFamily:"monospace",lineHeight:1.5}}>
-               {customUrl}
-             </div>
-          }
-          <div style={{fontSize:10,color:"#2a3a55",marginTop:4}}>
-            This must match your deployed member portal URL. Click Edit to change if needed.
-          </div>
-        </div>
-
-        {/* Full registration URL */}
-        <div style={{marginBottom:16,background:"#080c12",borderRadius:8,padding:"10px 12px",
-          border:"1px solid #1a3a1a"}}>
-          <div style={{fontSize:10,color:"#4a7a4a",marginBottom:4,fontWeight:600}}>REGISTRATION LINK</div>
-          <div style={{fontSize:11,color:"#10b981",wordBreak:"break-all",fontFamily:"monospace",lineHeight:1.6}}>
-            {regUrl}
+          <div>
+            <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{merchant.name}</div>
+            {merchant.address&&<div style={{fontSize:11,color:"#4a7a4a",marginTop:1}}>📍 {merchant.address}</div>}
           </div>
         </div>
 
         {/* QR Code */}
-        <div style={{textAlign:"center",marginBottom:16}}>
-          <div style={{display:"inline-block",padding:12,background:"#ffffff",borderRadius:12,
-            border:"2px solid #1a4a2a",boxShadow:"0 4px 20px #10b98122"}}>
-            <img src={qrSrc} alt={"QR-"+merchant.code} width={200} height={200}
-              onError={e=>{e.target.onerror=null;e.target.src=qrSrcFallback;}}
-              style={{display:"block",background:"#fff"}}/>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{display:"inline-block",padding:16,background:"#0d2a1a",borderRadius:16,border:"2px solid #1a4a2a"}}>
+            <img src={qrSrc} alt={`QR for ${merchant.name}`} width={200} height={200}
+              style={{display:"block",borderRadius:8}}/>
           </div>
-          <div style={{fontSize:10,color:"#2a3a55",marginTop:8}}>Scan with phone camera to open registration form</div>
         </div>
 
-        {/* Action buttons */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+        {/* URL display */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:10,color:"#445566",textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Registration Link</div>
+          <div style={{background:"#080c12",borderRadius:8,padding:"10px 12px",border:"1px solid #1e2535",
+            fontSize:11,color:"#4a7a5a",wordBreak:"break-all",lineHeight:1.5,fontFamily:"monospace"}}>
+            {regUrl}
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <button className="btn" onClick={copyUrl}
-            style={{fontSize:12,padding:"10px",background:copied?"linear-gradient(135deg,#10b981,#059669)":"linear-gradient(135deg,#f59e0b,#f97316)"}}>
-            {copied?"✓ Copied!":"📋 Copy Link"}
-          </button>
-          <a href={regUrl} target="_blank" rel="noreferrer"
-            style={{display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:12,padding:"10px",borderRadius:8,background:"#0e1420",
-              border:"1px solid #1e2535",color:"#60a5fa",textDecoration:"none",fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>
-            🔗 Test Link
-          </a>
-        </div>
-        <button onClick={()=>{
+            style={{fontSize:13,padding:"11px"}}>📋 Copy Link</button>
+          <button className="btn-g" onClick={()=>{
             const link=document.createElement("a");
-            link.href="https://api.qrserver.com/v1/create-qr-code/?size=600x600&data="+encodeURIComponent(regUrl)+"&bgcolor=ffffff&color=000000&qzone=2&format=png";
-            link.download="QR-"+merchant.code+".png";
-            link.target="_blank";
-            document.body.appendChild(link);link.click();document.body.removeChild(link);
-          }}
-          style={{width:"100%",padding:"10px",background:"#0e1420",border:"1px solid #1e2535",
-            borderRadius:8,color:"#8899bb",fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-          ⬇ Download QR Image
-        </button>
+            link.href=qrSrc.replace("240x240","600x600");
+            link.download=`QR-${merchant.code}.png`;
+            link.click();
+          }} style={{fontSize:13,padding:"11px"}}>⬇ Download QR</button>
+        </div>
 
-        <div style={{marginTop:12,fontSize:10,color:"#2a3a55",textAlign:"center",lineHeight:1.6}}>
-          Merchant code <span style={{color:"#10b981",fontFamily:"monospace",fontWeight:700}}>{merchant.code}</span> is pre-filled and hidden from the member when they register via this QR.
+        <div style={{marginTop:14,fontSize:11,color:"#2a3a55",textAlign:"center",lineHeight:1.6}}>
+          When a member scans this QR, they are taken directly to the registration form with <span style={{color:"#10b981",fontFamily:"monospace",fontWeight:700}}>{merchant.code}</span> pre-filled and hidden.
         </div>
       </div>
     </div>
