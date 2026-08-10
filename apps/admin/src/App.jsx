@@ -38,6 +38,19 @@ const fmtPhone = v  => v.replace(/\D/g,"").slice(0,11).replace(/(\d{3})(\d{0,4})
 const today    = () => new Date().toLocaleDateString("en-MY",{day:"2-digit",month:"short"});
 const getTier  = (pts,tiers) => [...tiers].reverse().find(t=>pts>=t.minPoints)||tiers[0];
 
+function fmtBirthday(bday, format="short") {
+  if (!bday) return null;
+  const parts = bday.split("-");
+  if (parts.length < 2) return null;
+  const month = parseInt(parts[0]) - 1;
+  const day = parseInt(parts[1]);
+  if (isNaN(month) || isNaN(day)) return null;
+  const MONTHS_L = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const MONTHS_S = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const m = format === "long" ? MONTHS_L[month] : MONTHS_S[month];
+  return `${day} ${m}`;
+}
+
 function getAncestors(members,memberId,maxDepth){
   const r=[];let cur=memberId;let d=0;
   while(d<maxDepth){const m=members.find(x=>x.id===cur);if(!m||!m.referredBy)break;d++;cur=m.referredBy;r.push({id:cur,level:d});}
@@ -52,14 +65,6 @@ function parseBirthday(bday){
   const day=parseInt(parts[1]);
   if(isNaN(month)||isNaN(day)) return null;
   return {month,day};
-}
-function fmtBirthday(bday,format="short"){
-  const p=parseBirthday(bday);
-  if(!p) return null;
-  const MONTHS_L=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const MONTHS_S=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const m=format==="long"?MONTHS_L[p.month]:MONTHS_S[p.month];
-  return `${p.day} ${m}`;
 }
 
 function getDownline(members,rootId,maxDepth){
@@ -430,40 +435,350 @@ function Dashboard({ctx,onSelect}){
 }
 
 // ─── MEMBERS ─────────────────────────────────────────────────────────────────
-function Members({ctx,onSelect}){
-  const {members,tiers}=ctx;
-  const [q,setQ]=useState("");
-  const filtered=members.filter(m=>m.name.toLowerCase().includes(q.toLowerCase())||m.phone.includes(q));
-  return <div className="fi">
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div>
-        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Members</h1>
-        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>{members.length} enrolled</p>
+function Members({ctx, onSelect}){
+  const {members, tiers, setMembers, showToast} = ctx;
+  const [q, setQ] = useState("");
+  const [editingMember, setEditingMember] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const filtered = members.filter(m => 
+    m.name.toLowerCase().includes(q.toLowerCase()) || 
+    m.phone.includes(q)
+  );
+
+  // Start editing a member
+  const startEdit = (member) => {
+    setEditingMember(member.id);
+    setEditForm({
+      name: member.name,
+      phone: member.phone,
+      pin: member.pin || "0000",
+      birthday: member.birthday || "",
+      merchantCode: member.merchantCode || "",
+      referredBy: member.referredBy || ""
+    });
+  };
+
+  // Cancel editing
+  const cancelEdit = () => {
+    setEditingMember(null);
+    setEditForm({});
+  };
+
+  // Save edited member
+  const saveEdit = async () => {
+    if (!editForm.name.trim()) {
+      showToast("Name is required.", "error");
+      return;
+    }
+    if (editForm.phone.replace(/\D/g,"").length < 10) {
+      showToast("Valid phone number required.", "error");
+      return;
+    }
+    if (editForm.pin && !/^\d{4}$/.test(editForm.pin)) {
+      showToast("PIN must be exactly 4 digits.", "error");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      setMembers(prev => prev.map(m => {
+        if (m.id === editingMember) {
+          return {
+            ...m,
+            name: editForm.name.trim(),
+            phone: editForm.phone,
+            pin: editForm.pin || "0000",
+            birthday: editForm.birthday || "",
+            merchantCode: editForm.merchantCode || "",
+            referredBy: editForm.referredBy || null
+          };
+        }
+        return m;
+      }));
+      showToast("Member updated successfully!");
+      setEditingMember(null);
+      setEditForm({});
+    } catch (error) {
+      showToast("Failed to update member.", "error");
+    }
+    setIsSaving(false);
+  };
+
+  // Delete a member
+  const deleteMember = async () => {
+    try {
+      setMembers(prev => prev.filter(m => m.id !== showDeleteConfirm));
+      showToast("Member deleted successfully!");
+      setShowDeleteConfirm(null);
+    } catch (error) {
+      showToast("Failed to delete member.", "error");
+    }
+  };
+
+  return (
+    <div className="fi">
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24}}>
+        <div>
+          <h1 style={{fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:900, color:"#e8eaf0"}}>Members</h1>
+          <p style={{color:"#5566aa", fontSize:14, marginTop:4}}>{members.length} enrolled</p>
+        </div>
+        <input 
+          className="inp" 
+          placeholder="Search name or phone…" 
+          value={q} 
+          onChange={e => setQ(e.target.value)} 
+          style={{width:240}}
+        />
       </div>
-      <input className="inp" placeholder="Search name or phone…" value={q} onChange={e=>setQ(e.target.value)} style={{width:240}}/>
+
+      <div className="card" style={{overflow: "hidden"}}>
+        <table style={{width:"100%", borderCollapse:"collapse"}}>
+          <thead>
+            <tr style={{borderBottom:"1px solid #1a2030"}}>
+              {["Member", "Phone", "Tier", "Points", "Referred By", "Birthday", "Joined", "Actions"].map(h => (
+                <th key={h} style={{padding:"14px 20px", textAlign:"left", fontSize:11, fontWeight:600, color:"#445566", letterSpacing:.8, textTransform:"uppercase"}}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(m => {
+              const tier = getTier(m.points, tiers);
+              const ref = members.find(x => x.id === m.referredBy);
+              const isEditing = editingMember === m.id;
+
+              if (isEditing) {
+                return (
+                  <tr key={m.id} style={{borderBottom:"1px solid #0e1825", background:"#0d1a2a"}}>
+                    <td style={{padding:"10px 16px"}}>
+                      <input 
+                        className="inp" 
+                        value={editForm.name} 
+                        onChange={e => setEditForm(f => ({...f, name: e.target.value}))}
+                        style={{padding:"6px 10px", fontSize:13, width:"100%", minWidth:120}}
+                      />
+                    </td>
+                    <td style={{padding:"10px 16px"}}>
+                      <input 
+                        className="inp" 
+                        value={editForm.phone} 
+                        onChange={e => setEditForm(f => ({...f, phone: fmtPhone(e.target.value)}))}
+                        style={{padding:"6px 10px", fontSize:13, width:"100%", minWidth:120}}
+                      />
+                    </td>
+                    <td style={{padding:"10px 16px"}}>
+                      <TierBadge tier={tier}/>
+                    </td>
+                    <td style={{padding:"10px 16px", fontWeight:700, color:tier.color, fontSize:14}}>
+                      {m.points.toLocaleString()}
+                    </td>
+                    <td style={{padding:"10px 16px"}}>
+                      <select 
+                        className="inp" 
+                        value={editForm.referredBy} 
+                        onChange={e => setEditForm(f => ({...f, referredBy: e.target.value}))}
+                        style={{padding:"6px 10px", fontSize:12, width:"100%", minWidth:100}}
+                      >
+                        <option value="">— None —</option>
+                        {members.filter(member => member.id !== m.id).map(member => (
+                          <option key={member.id} value={member.id}>{member.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={{padding:"10px 16px"}}>
+                      <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                        <select 
+                          className="inp" 
+                          value={editForm.birthday ? editForm.birthday.split("-")[0] : ""} 
+                          onChange={e => {
+                            const day = editForm.birthday ? editForm.birthday.split("-")[1] || "01" : "01";
+                            setEditForm(f => ({...f, birthday: e.target.value ? `${e.target.value}-${day}` : ""}));
+                          }}
+                          style={{padding:"6px 8px", fontSize:11, width:80}}
+                        >
+                          <option value="">Month</option>
+                          {["01","02","03","04","05","06","07","08","09","10","11","12"].map((month, i) => (
+                            <option key={month} value={month}>
+                              {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i]}
+                            </option>
+                          ))}
+                        </select>
+                        <select 
+                          className="inp" 
+                          value={editForm.birthday ? editForm.birthday.split("-")[1] || "" : ""} 
+                          onChange={e => {
+                            const month = editForm.birthday ? editForm.birthday.split("-")[0] || "01" : "01";
+                            setEditForm(f => ({...f, birthday: month && e.target.value ? `${month}-${e.target.value}` : ""}));
+                          }}
+                          style={{padding:"6px 8px", fontSize:11, width:60}}
+                        >
+                          <option value="">Day</option>
+                          {Array.from({length:31}, (_, i) => String(i + 1).padStart(2, "0")).map(d => (
+                            <option key={d} value={d}>{parseInt(d)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td style={{padding:"10px 16px", color:"#5566aa", fontSize:12}}>{m.joinedAt}</td>
+                    <td style={{padding:"10px 16px"}}>
+                      <div style={{display:"flex", gap:6, alignItems:"center", flexWrap:"wrap"}}>
+                        <button 
+                          className="btn" 
+                          onClick={saveEdit} 
+                          disabled={isSaving}
+                          style={{padding:"6px 14px", fontSize:11, opacity: isSaving ? 0.6 : 1}}
+                        >
+                          {isSaving ? "Saving…" : "💾"}
+                        </button>
+                        <button 
+                          className="btn-g" 
+                          onClick={cancelEdit}
+                          style={{padding:"6px 14px", fontSize:11}}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={m.id} className="row" style={{borderBottom:"1px solid #0e1825", cursor:"pointer", transition:"background .15s"}}>
+                  <td 
+                    style={{padding:"14px 20px", fontWeight:600, color:"#ccd", fontSize:14}}
+                    onClick={() => onSelect(m.id)}
+                  >
+                    {m.name}
+                  </td>
+                  <td 
+                    style={{padding:"14px 20px", color:"#8899bb", fontSize:13}}
+                    onClick={() => onSelect(m.id)}
+                  >
+                    {m.phone}
+                  </td>
+                  <td 
+                    style={{padding:"14px 20px"}}
+                    onClick={() => onSelect(m.id)}
+                  >
+                    <TierBadge tier={tier}/>
+                  </td>
+                  <td 
+                    style={{padding:"14px 20px", fontWeight:700, color:tier.color, fontSize:14}}
+                    onClick={() => onSelect(m.id)}
+                  >
+                    {m.points.toLocaleString()}
+                  </td>
+                  <td 
+                    style={{padding:"14px 20px", color:"#6677aa", fontSize:13}}
+                    onClick={() => onSelect(m.id)}
+                  >
+                    {ref ? ref.name : <span style={{color:"#2a3a55"}}>—</span>}
+                  </td>
+                  <td 
+                    style={{padding:"14px 20px", color:"#f59e0b", fontSize:12}}
+                    onClick={() => onSelect(m.id)}
+                  >
+                    {m.birthday ? fmtBirthday(m.birthday, "short") || "—" : <span style={{color:"#2a3a55"}}>—</span>}
+                  </td>
+                  <td 
+                    style={{padding:"14px 20px", color:"#5566aa", fontSize:12}}
+                    onClick={() => onSelect(m.id)}
+                  >
+                    {m.joinedAt}
+                  </td>
+                  <td style={{padding:"14px 20px"}}>
+                    <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                      <button 
+                        className="btn-g" 
+                        onClick={(e) => { e.stopPropagation(); startEdit(m); }}
+                        style={{padding:"4px 12px", fontSize:11}}
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        className="btn-d" 
+                        onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(m.id); }}
+                        style={{padding:"4px 12px", fontSize:11}}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filtered.length === 0 && (
+          <div style={{textAlign:"center", padding:"40px", color:"#2a3a55", fontSize:13}}>
+            No members found.
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div 
+          style={{
+            position:"fixed", 
+            inset:0, 
+            background:"rgba(0,0,0,.7)", 
+            display:"flex", 
+            alignItems:"center", 
+            justifyContent:"center", 
+            zIndex:9999,
+            padding:20
+          }}
+          onClick={() => setShowDeleteConfirm(null)}
+        >
+          <div 
+            className="si card" 
+            style={{
+              padding:"32px", 
+              maxWidth:420, 
+              width:"100%", 
+              background:"#0e1420", 
+              border:"1px solid #3a1a1a",
+              textAlign:"center"
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{fontSize:48, marginBottom:16}}>⚠️</div>
+            <div style={{fontFamily:"'Playfair Display',serif", fontSize:22, color:"#e8eaf0", marginBottom:8}}>
+              Delete Member?
+            </div>
+            <div style={{color:"#5566aa", fontSize:14, marginBottom:24, lineHeight:1.6}}>
+              Are you sure you want to delete <strong style={{color:"#ccd"}}>
+                {members.find(m => m.id === showDeleteConfirm)?.name}
+              </strong>?<br/>
+              This action <strong style={{color:"#f87171"}}>cannot be undone</strong>.
+            </div>
+            <div style={{display:"flex", gap:12, justifyContent:"center"}}>
+              <button 
+                className="btn-d" 
+                onClick={deleteMember}
+                style={{padding:"10px 28px", fontSize:14}}
+              >
+                Yes, Delete
+              </button>
+              <button 
+                className="btn-g" 
+                onClick={() => setShowDeleteConfirm(null)}
+                style={{padding:"10px 28px", fontSize:14}}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-    <div className="card" style={{overflow:"hidden"}}>
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr style={{borderBottom:"1px solid #1a2030"}}>
-          {["Member","Phone","Tier","Points","Referred By","Birthday","Joined"].map(h=><th key={h} style={{padding:"14px 20px",textAlign:"left",fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</th>)}
-        </tr></thead>
-        <tbody>
-          {filtered.map(m=>{
-            const tier=getTier(m.points,tiers);const ref=members.find(x=>x.id===m.referredBy);
-            return <tr key={m.id} className="row" onClick={()=>onSelect(m.id)} style={{borderBottom:"1px solid #0e1825",cursor:"pointer"}}>
-              <td style={{padding:"14px 20px",fontWeight:600,color:"#ccd",fontSize:14,transition:"background .15s"}}>{m.name}</td>
-              <td style={{padding:"14px 20px",color:"#8899bb",fontSize:13}}>{m.phone}</td>
-              <td style={{padding:"14px 20px"}}><TierBadge tier={tier}/></td>
-              <td style={{padding:"14px 20px",fontWeight:700,color:tier.color,fontSize:14}}>{m.points.toLocaleString()}</td>
-              <td style={{padding:"14px 20px",color:"#6677aa",fontSize:13}}>{ref?ref.name:<span style={{color:"#2a3a55"}}>—</span>}</td>
-              <td style={{padding:"14px 20px",color:"#f59e0b",fontSize:12}}>{m.birthday?fmtBirthday(m.birthday,"short")||"—":<span style={{color:"#2a3a55"}}>—</span>}</td>
-              <td style={{padding:"14px 20px",color:"#5566aa",fontSize:12}}>{m.joinedAt}</td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-    </div>
-  </div>;
+  );
 }
 
 // ─── ENROLL ───────────────────────────────────────────────────────────────────
@@ -2827,84 +3142,130 @@ function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary
     </div>
   );
 }
+
 // ─── QR MODAL ────────────────────────────────────────────────────────────────
 function QRModal({merchant,onClose}){
-  const baseUrl=(()=>{
-    try{
-      const u=window.location.href;
-      // Get the member portal URL by replacing /admin/ with /member/
-      return u.replace(/\/admin\/?.*$/,"").replace(/\/loyaltyapp\/?.*$/,"/loyaltyapp/member/")
-             ||"https://sasbigpos.github.io/loyaltyapp/member/";
-    }catch{return "https://sasbigpos.github.io/loyaltyapp/member/";}
-  })();
-  const regUrl=`${baseUrl}?mc=${merchant.code}`;
-  // Use QR Server API - free, no key needed
-  const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(regUrl)}&bgcolor=0d2a1a&color=10b981&qzone=2`;
+  const MEMBER_BASE = "https://sasbigpos.github.io/loyaltyapp/member/";
+  const [customUrl, setCustomUrl] = useState(MEMBER_BASE);
+  const [editing, setEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const copyUrl=()=>{
-    navigator.clipboard?.writeText(regUrl).then(()=>alert("Registration link copied!")).catch(()=>{});
+  // Clean URL: remove trailing slashes, add exactly one, then query string
+  const regUrl = customUrl.replace(/\/+$/, "") + "/?mc=" + merchant.code;
+  const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=" + encodeURIComponent(regUrl) + "&bgcolor=ffffff&color=000000&qzone=2&format=png";
+  const qrSrcFallback = "https://chart.googleapis.com/chart?chs=240x240&cht=qr&chl=" + encodeURIComponent(regUrl) + "&choe=UTF-8";
+
+  const copyUrl = () => {
+    navigator.clipboard?.writeText(regUrl)
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+      .catch(() => {
+        // Fallback for browsers without clipboard API
+        const ta = document.createElement("textarea");
+        ta.value = regUrl; document.body.appendChild(ta); ta.select();
+        document.execCommand("copy"); document.body.removeChild(ta);
+        setCopied(true); setTimeout(() => setCopied(false), 2000);
+      });
   };
 
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",
-      alignItems:"center",justifyContent:"center",zIndex:9999,padding:20}}
-      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="si card" style={{padding:"32px 28px",maxWidth:400,width:"100%",
-        background:"#0e1420",border:"1px solid #1e2535",position:"relative"}}>
+    <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,.8)", display:"flex",
+      alignItems:"center", justifyContent:"center", zIndex:9999, padding:20}}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="si card" style={{padding:"28px", maxWidth:420, width:"100%",
+        background:"#0e1420", border:"1px solid #1e2535", position:"relative", maxHeight:"90vh", overflowY:"auto"}}>
         <button onClick={onClose}
-          style={{position:"absolute",top:16,right:16,background:"#1a2535",border:"none",
-            color:"#5566aa",borderRadius:"50%",width:32,height:32,fontSize:16,cursor:"pointer"}}>✕</button>
+          style={{position:"absolute", top:14, right:14, background:"#1a2535", border:"none",
+            color:"#5566aa", borderRadius:"50%", width:30, height:30, fontSize:15, cursor:"pointer", lineHeight:"30px"}}>✕</button>
 
-        <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#e8eaf0",fontWeight:700,marginBottom:4}}>
+        <div style={{textAlign:"center", marginBottom:18}}>
+          <div style={{fontFamily:"'Playfair Display',serif", fontSize:18, color:"#e8eaf0", fontWeight:700, marginBottom:4}}>
             Registration QR Code
           </div>
-          <div style={{fontSize:12,color:"#445566"}}>Scan to register under this merchant</div>
+          <div style={{fontSize:12, color:"#445566"}}>Member scans this to register under {merchant.name}</div>
         </div>
 
-        {/* Merchant info */}
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,
-          padding:"12px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
-          <div style={{width:40,height:40,borderRadius:8,background:"#0a1a0a",
-            display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981"}}>{merchant.code}</span>
-          </div>
-          <div>
-            <div style={{fontWeight:700,color:"#ccd",fontSize:14}}>{merchant.name}</div>
-            {merchant.address&&<div style={{fontSize:11,color:"#4a7a4a",marginTop:1}}>📍 {merchant.address}</div>}
+        {/* Merchant badge */}
+        <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16,
+          padding:"10px 14px", background:"#0d2a1a", borderRadius:10, border:"1px solid #1a4a2a"}}>
+          <span style={{fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#10b981",
+            background:"#0a1a0a", padding:"3px 8px", borderRadius:6}}>{merchant.code}</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700, color:"#ccd", fontSize:13}}>{merchant.name}</div>
+            {merchant.address&&<div style={{fontSize:10, color:"#4a7a4a"}}>📍 {merchant.address}</div>}
           </div>
         </div>
 
-        {/* QR Code */}
-        <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{display:"inline-block",padding:16,background:"#0d2a1a",borderRadius:16,border:"2px solid #1a4a2a"}}>
-            <img src={qrSrc} alt={`QR for ${merchant.name}`} width={200} height={200}
-              style={{display:"block",borderRadius:8}}/>
+        {/* Base URL config */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10, color:"#445566", textTransform:"uppercase", letterSpacing:.8, marginBottom:6,
+            display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+            <span>Member Portal Base URL</span>
+            <button onClick={() => setEditing(e => !e)}
+              style={{background:"none", border:"none", color:"#5566aa", fontSize:11, cursor:"pointer", textDecoration:"underline"}}>
+              {editing ? "Done" : "Edit"}
+            </button>
+          </div>
+          {editing
+            ? <input className="inp" value={customUrl} onChange={e => setCustomUrl(e.target.value)}
+               style={{fontSize:12, padding:"8px 10px"}}
+               placeholder="https://sasbigpos.github.io/loyaltyapp/member/"/>
+            : <div style={{background:"#080c12", borderRadius:8, padding:"8px 12px", border:"1px solid #1e2535",
+               fontSize:11, color:"#4a7a5a", wordBreak:"break-all", fontFamily:"monospace", lineHeight:1.5}}>
+               {customUrl}
+             </div>
+          }
+          <div style={{fontSize:10, color:"#2a3a55", marginTop:4}}>
+            This must match your deployed member portal URL. Click Edit to change if needed.
           </div>
         </div>
 
-        {/* URL display */}
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:10,color:"#445566",textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Registration Link</div>
-          <div style={{background:"#080c12",borderRadius:8,padding:"10px 12px",border:"1px solid #1e2535",
-            fontSize:11,color:"#4a7a5a",wordBreak:"break-all",lineHeight:1.5,fontFamily:"monospace"}}>
+        {/* Full registration URL */}
+        <div style={{marginBottom:16, background:"#080c12", borderRadius:8, padding:"10px 12px",
+          border:"1px solid #1a3a1a"}}>
+          <div style={{fontSize:10, color:"#4a7a4a", marginBottom:4, fontWeight:600}}>REGISTRATION LINK</div>
+          <div style={{fontSize:11, color:"#10b981", wordBreak:"break-all", fontFamily:"monospace", lineHeight:1.6}}>
             {regUrl}
           </div>
         </div>
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <button className="btn" onClick={copyUrl}
-            style={{fontSize:13,padding:"11px"}}>📋 Copy Link</button>
-          <button className="btn-g" onClick={()=>{
-            const link=document.createElement("a");
-            link.href=qrSrc.replace("240x240","600x600");
-            link.download=`QR-${merchant.code}.png`;
-            link.click();
-          }} style={{fontSize:13,padding:"11px"}}>⬇ Download QR</button>
+        {/* QR Code */}
+        <div style={{textAlign:"center", marginBottom:16}}>
+          <div style={{display:"inline-block", padding:12, background:"#ffffff", borderRadius:12,
+            border:"2px solid #1a4a2a", boxShadow:"0 4px 20px #10b98122"}}>
+            <img src={qrSrc} alt={"QR-"+merchant.code} width={200} height={200}
+              onError={e => { e.target.onerror = null; e.target.src = qrSrcFallback; }}
+              style={{display:"block", background:"#fff"}}/>
+          </div>
+          <div style={{fontSize:10, color:"#2a3a55", marginTop:8}}>Scan with phone camera to open registration form</div>
         </div>
 
-        <div style={{marginTop:14,fontSize:11,color:"#2a3a55",textAlign:"center",lineHeight:1.6}}>
-          When a member scans this QR, they are taken directly to the registration form with <span style={{color:"#10b981",fontFamily:"monospace",fontWeight:700}}>{merchant.code}</span> pre-filled and hidden.
+        {/* Action buttons */}
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
+          <button className="btn" onClick={copyUrl}
+            style={{fontSize:12, padding:"10px", background:copied ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#f59e0b,#f97316)"}}>
+            {copied ? "✓ Copied!" : "📋 Copy Link"}
+          </button>
+          <a href={regUrl} target="_blank" rel="noreferrer"
+            style={{display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:12, padding:"10px", borderRadius:8, background:"#0e1420",
+              border:"1px solid #1e2535", color:"#60a5fa", textDecoration:"none", fontFamily:"'DM Sans',sans-serif", fontWeight:600}}>
+            🔗 Test Link
+          </a>
+        </div>
+        <button onClick={() => {
+            const link = document.createElement("a");
+            link.href = "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=" + encodeURIComponent(regUrl) + "&bgcolor=ffffff&color=000000&qzone=2&format=png";
+            link.download = "QR-"+merchant.code+".png";
+            link.target = "_blank";
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+          }}
+          style={{width:"100%", padding:"10px", background:"#0e1420", border:"1px solid #1e2535",
+            borderRadius:8, color:"#8899bb", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif"}}>
+          ⬇ Download QR Image
+        </button>
+
+        <div style={{marginTop:12, fontSize:10, color:"#2a3a55", textAlign:"center", lineHeight:1.6}}>
+          Merchant code <span style={{color:"#10b981", fontFamily:"monospace", fontWeight:700}}>{merchant.code}</span> is pre-filled and hidden from the member when they register via this QR.
         </div>
       </div>
     </div>
