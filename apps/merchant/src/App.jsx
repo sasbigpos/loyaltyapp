@@ -188,6 +188,7 @@ export default function MerchantApp() {
         if (m.id === selectedMember.id) {
           return {
             ...m,
+            merchantCode: merchantData.code, // <--- FIX ADDED HERE
             points: m.points + effectivePts,
             transactions: [{
               id: genId(),
