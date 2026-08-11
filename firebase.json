@@ -39,6 +39,24 @@
           "headers": [{ "key": "Cache-Control", "value": "max-age=0, must-revalidate" }]
         }
       ]
+    },
+    {
+      "target": "merchant",
+      "public": "apps/merchant/dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        { "source": "**", "destination": "/index.html" }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(js|jsx|ts|tsx)",
+          "headers": [{ "key": "Cache-Control", "value": "max-age=31536000, immutable" }]
+        },
+        {
+          "source": "**",
+          "headers": [{ "key": "Cache-Control", "value": "max-age=0, must-revalidate" }]
+        }
+      ]
     }
   ]
 }
