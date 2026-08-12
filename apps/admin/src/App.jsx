@@ -90,6 +90,7 @@ async function loadAll() {
 async function saveMembers(members) { try { await window.storage.set(KEYS.members, JSON.stringify(members), true); } catch(e){console.error(e);} }
 async function saveTiers(tiers)     { try { await window.storage.set(KEYS.tiers,   JSON.stringify(tiers),   true); } catch(e){console.error(e);} }
 async function saveRefLevels(rl)    { try { await window.storage.set(KEYS.refLevels,JSON.stringify(rl),     true); } catch(e){console.error(e);} }
+async function saveMerchants(merchants) { try { await window.storage.set(KEYS.merchants, JSON.stringify(merchants), true); } catch(e){console.error(e);} }
 
 // ─── SHARED UI ────────────────────────────────────────────────────────────────
 function AnimNumber({value}){
@@ -209,6 +210,10 @@ export default function AdminApp() {
     setSyncing(true);
     setRefState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveRefLevels(next).finally(()=>setSyncing(false));return next;});
   },[]);
+  const setMerchants = useCallback(async(fn)=>{
+    setSyncing(true);
+    setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
+  }, []);
 
   // Award points + cascade referral overrides
   const awardPoints = (memberId, basePts, note, merchantCode="", icon="◆") => {
@@ -238,6 +243,77 @@ export default function AdminApp() {
     return newM;
   };
 
+  // ─── HARD RESET FUNCTIONS ──────────────────────────────────────────────────
+
+  // Action 1: Reset Only Points and Transactions (Keeps Members, Merchants, Tiers)
+  const handleResetPoints = async () => {
+    if (!window.confirm("⚠️ This will permanently delete ALL transactions and set ALL member points to 0.\n\nMember profiles (names, phone numbers, merchant assignments, etc.) will be KEPT.\n\nAre you sure you want to continue?")) return;
+    if (!window.confirm("Final confirmation: Reset points and transactions for all members?")) return;
+
+    setSyncing(true);
+    showToast("Resetting points & transactions... please wait.", "success");
+    
+    try {
+      // Map through current members, set points to 0 and empty the transactions array
+      const resetMembers = members.map(m => ({
+        ...m,
+        points: 0,
+        transactions: []
+      }));
+
+      // Save the modified list back to Firebase
+      await saveMembers(resetMembers);
+      setMembersState(resetMembers);
+
+      showToast("✅ All points and transactions have been reset to 0.", "success");
+      
+      // Reload the page to ensure the UI and cache completely refresh
+      setTimeout(() => { window.location.reload(); }, 1500);
+
+    } catch (error) {
+      console.error("Reset points error:", error);
+      showToast("❌ Failed to reset points. Check console for details.", "error");
+      setSyncing(false);
+    }
+  };
+
+  // Action 2: Delete EVERYTHING (Clean Slate - including Members)
+  const handleWipeAll = async () => {
+    if (!window.confirm("⚠️ WARNING: This will permanently delete ALL members, merchants, points, transactions, referral levels, and tier settings from the Firebase database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?")) return;
+    if (!window.confirm("Final confirmation: Are you ABSOLUTELY sure you want to wipe all data?")) return;
+
+    setSyncing(true);
+    showToast("Wiping all data... please wait.", "success");
+    
+    try {
+      // 1. Reset Tiers to Default
+      await saveTiers(DEFAULT_TIERS);
+      setTiersState(DEFAULT_TIERS);
+
+      // 2. Reset Referral Levels to Default
+      await saveRefLevels(DEFAULT_REF);
+      setRefState(DEFAULT_REF);
+
+      // 3. Reset Merchants to Empty
+      await saveMerchants([]);
+      setMerchants([]);
+
+      // 4. Reset Members to Empty
+      await saveMembers([]);
+      setMembersState([]);
+
+      showToast("✅ All members, merchants, and points have been permanently wiped.", "success");
+      
+      // Reload the page to ensure the UI and cache completely refresh from Firebase
+      setTimeout(() => { window.location.reload(); }, 1500);
+
+    } catch (error) {
+      console.error("Wipe error:", error);
+      showToast("❌ Failed to wipe data. Check console for details.", "error");
+      setSyncing(false);
+    }
+  };
+
   if(!pwReady) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
@@ -258,7 +334,7 @@ export default function AdminApp() {
     </div>
   );
 
-  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards,merchants,setMerchants};
+  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards,merchants,setMerchants, handleResetPoints, handleWipeAll };
 
   return (
     <div style={{minHeight:"100vh",background:"#080c12",color:"#e8eaf0",fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex"}}>
@@ -1432,7 +1508,7 @@ function WelcomeConfig({appConfig,setAppConfig,showToast}){
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 function Config({ctx}){
-  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig,setMembers,setMerchants}=ctx;
+  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig, handleResetPoints, handleWipeAll}=ctx;
   const [tab,setTab]=useState("tiers");
   const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
   const [pwErr,setPwErr]=useState("");
@@ -1440,45 +1516,6 @@ function Config({ctx}){
   const [pwSaving,setPwSaving]=useState(false);
   const upT=(id,f,v)=>setTiers(p=>p.map(t=>t.id===id?{...t,[f]:f==="minPoints"||f==="multiplier"?Number(v):v}:t));
   const upR=(lv,f,v)=>setRefLevels(p=>p.map(r=>r.level===lv?{...r,[f]:f==="overridePercent"?Number(v):v}:r));
-
-  // ── NEW HARD RESET FUNCTION ──
-  const handleResetApp = async () => {
-    if (!window.confirm("⚠️ WARNING: This will permanently delete ALL members, merchants, points, transactions, referral levels, and tier settings from the Firebase database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?")) return;
-
-    if (!window.confirm("Final confirmation: Are you ABSOLUTELY sure you want to wipe all data?")) return;
-
-    setSyncing(true);
-    try {
-      // 1. Reset Tiers to Default
-      await saveTiers(DEFAULT_TIERS);
-      setTiers(DEFAULT_TIERS);
-
-      // 2. Reset Referral Levels to Default
-      await saveRefLevels(DEFAULT_REF);
-      setRefLevels(DEFAULT_REF);
-
-      // 3. Reset Merchants to Empty
-      await saveMerchants([]);
-      setMerchants([]);
-
-      // 4. Reset Members to Empty
-      await saveMembers([]);
-      setMembers([]);
-
-      showToast("✅ All members, merchants, and points have been permanently wiped.", "success");
-      
-      // Reload the page to ensure the UI and cache completely refresh from Firebase
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-
-    } catch (error) {
-      console.error("Reset error:", error);
-      showToast("❌ Failed to reset data. Check console for details.", "error");
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const changePw=async()=>{
     const {adminPw:storedPw,setAdminPw}=ctx;
@@ -1566,25 +1603,45 @@ function Config({ctx}){
     {tab==="danger"&&<div className="si card" style={{padding:"28px 30px",maxWidth:480,display:"flex",flexDirection:"column",gap:24,border:"1px solid #4a1a1a",background:"#120a0a"}}>
       <div>
         <div style={{fontWeight:700,color:"#ff6b6b",fontSize:16,marginBottom:4}}>⚠️ Danger Zone</div>
-        <div style={{fontSize:13,color:"#aa6666"}}>Permanently delete all data from the Firebase Realtime Database.</div>
+        <div style={{fontSize:13,color:"#aa6666"}}>Destructive actions that cannot be undone.</div>
       </div>
-      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px"}}>
+      
+      {/* Option 1: Reset Points */}
+      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px", marginBottom: 12}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontWeight:600,color:"#e8eaf0",fontSize:14}}>Reset All App Data</div>
-            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Deletes all members, merchants, points, transactions, tiers, and referral levels permanently.</div>
+            <div style={{fontWeight:600,color:"#e8eaf0",fontSize:14}}>Reset Points & Transactions</div>
+            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Deletes all transactions and sets all member points to 0. <strong>Member profiles are kept.</strong></div>
           </div>
           <button 
             className="btn-danger" 
-            onClick={handleResetApp}
+            onClick={handleResetPoints}
             style={{padding:"10px 24px",fontWeight:700,fontSize:13}}
           >
-            ✕ Wipe Data
+            ↻ Reset Points
           </button>
         </div>
       </div>
+
+      {/* Option 2: Delete Everything */}
+      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontWeight:600,color:"#ff6b6b",fontSize:14}}>Delete All Data (Clean Slate)</div>
+            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Permanently deletes ALL members, merchants, points, transactions, and settings.</div>
+          </div>
+          <button 
+            className="btn-danger" 
+            onClick={handleWipeAll}
+            style={{padding:"10px 24px",fontWeight:700,fontSize:13, background:"#3a0a0a"}}
+          >
+            ✕ Wipe All
+          </button>
+        </div>
+      </div>
+
       <div style={{fontSize:12,color:"#6a3a3a",lineHeight:1.8,borderTop:"1px solid #2a0a0a",paddingTop:16}}>
-        <strong style={{color:"#aa5555"}}>Warning:</strong> This action is irreversible and will immediately wipe the live data visible to all merchants and members.
+        <strong style={{color:"#aa5555"}}>Warning:</strong> These actions are irreversible and will immediately wipe the live data visible to all merchants and members.
       </div>
     </div>}
   </div>;
@@ -1874,7 +1931,7 @@ function WhatsAppBlast({ctx}){
                       <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
                       <div style={{fontSize:11,color:"#445566"}}>{m.birthday?fmtBirthday(m.birthday,"short")||"":""}</div>
                     </div>
-                    <span style={{fontSize:10,color:t.color,background:`${t.color}18`,padding:"2px 8px",borderRadius:99,fontWeight:700}}>{t.name}</span>
+                    <span style={{fontSize:10,color:t.color,fontWeight:700,background:`${t.color}18`,padding:"2px 8px",borderRadius:99}}>{t.name}</span>
                   </div>
                 );})}
               </div>}
