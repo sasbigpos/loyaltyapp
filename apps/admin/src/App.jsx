@@ -21,35 +21,14 @@ const DEFAULT_REF = [
   { level:2, label:"2nd Level Override", overridePercent:5,  color:"#10b981" },
   { level:3, label:"3rd Level Override", overridePercent:2,  color:"#6366f1" },
 ];
-const SEED_MEMBERS = [
-  { id:"m001", name:"Aisha Rahman", phone:"012-3456-789", pin:"1234", birthday:"03-15", points:3200, referredBy:null,   joinedAt:"2024-01-10", referralCode:"AISHA-2024",
-    transactions:[{id:"t1a",pts:500,icon:"🍽️",label:"Weekend Dining",date:"Mar 08",type:"earn"},{id:"t1b",pts:200,icon:"👥",label:"Referral Bonus",date:"Mar 05",type:"earn"},{id:"t1c",pts:-150,icon:"🎁",label:"Free Dessert",date:"Mar 01",type:"redeem"},{id:"t1d",pts:800,icon:"🎂",label:"Birthday Campaign",date:"Feb 22",type:"earn"},{id:"t1e",pts:1850,icon:"⭐",label:"Welcome Bonus",date:"Jan 10",type:"earn"}]},
-  { id:"m002", name:"Daniel Tan",   phone:"016-8877-001", pin:"1234", birthday:"07-22", points:720,  referredBy:"m001", joinedAt:"2024-02-14", referralCode:"DTAN-5528",
-    transactions:[{id:"t2a",pts:720,icon:"⭐",label:"Welcome + First Purchase",date:"Feb 14",type:"earn"}]},
-  { id:"m003", name:"Priya Nair",   phone:"011-2345-678", pin:"1234", birthday:"03-08", points:1680, referredBy:"m001", joinedAt:"2024-03-01", referralCode:"PNAIR-889",
-    transactions:[{id:"t3a",pts:1680,icon:"⭐",label:"Welcome + Monthly Spend",date:"Mar 01",type:"earn"}]},
-  { id:"m004", name:"Kevin Lim",    phone:"017-5544-332", pin:"1234", birthday:"11-30", points:210,  referredBy:"m002", joinedAt:"2024-04-05", referralCode:"KLIM-221",
-    transactions:[{id:"t4a",pts:210,icon:"⭐",label:"Welcome Bonus",date:"Apr 05",type:"earn"}]},
-];
+const SEED_MEMBERS = [];
+const SEED_MERCHANTS = [];
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const genId    = () => Math.random().toString(36).slice(2,9);
 const fmtPhone = v  => v.replace(/\D/g,"").slice(0,11).replace(/(\d{3})(\d{0,4})(\d{0,4})/,(_,a,b,c)=>c?`${a}-${b}-${c}`:b?`${a}-${b}`:a);
 const today    = () => new Date().toLocaleDateString("en-MY",{day:"2-digit",month:"short"});
 const getTier  = (pts,tiers) => [...tiers].reverse().find(t=>pts>=t.minPoints)||tiers[0];
-
-function fmtBirthday(bday, format="short") {
-  if (!bday) return null;
-  const parts = bday.split("-");
-  if (parts.length < 2) return null;
-  const month = parseInt(parts[0]) - 1;
-  const day = parseInt(parts[1]);
-  if (isNaN(month) || isNaN(day)) return null;
-  const MONTHS_L = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const MONTHS_S = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const m = format === "long" ? MONTHS_L[month] : MONTHS_S[month];
-  return `${day} ${m}`;
-}
 
 function getAncestors(members,memberId,maxDepth){
   const r=[];let cur=memberId;let d=0;
@@ -65,6 +44,14 @@ function parseBirthday(bday){
   const day=parseInt(parts[1]);
   if(isNaN(month)||isNaN(day)) return null;
   return {month,day};
+}
+function fmtBirthday(bday,format="short"){
+  const p=parseBirthday(bday);
+  if(!p) return null;
+  const MONTHS_L=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const MONTHS_S=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const m=format==="long"?MONTHS_L[p.month]:MONTHS_S[p.month];
+  return `${p.day} ${m}`;
 }
 
 function getDownline(members,rootId,maxDepth){
@@ -287,6 +274,8 @@ export default function AdminApp() {
         .btn-g:hover{border-color:#3a4a66;color:#ccd;}
         .btn-d{background:#2a1010;color:#ff6b6b;border:1px solid #3a1515;border-radius:10px;padding:9px 18px;font-size:14px;transition:all .2s;font-family:'DM Sans',sans-serif;}
         .btn-d:hover{background:#3a1515;}
+        .btn-danger{background:#1a0a0a;color:#ff6b6b;border:1px solid #4a1a1a;border-radius:10px;padding:9px 18px;font-size:14px;transition:all .2s;font-family:'DM Sans',sans-serif;}
+        .btn-danger:hover{background:#2a1010;border-color:#5a1a1a;}
         .inp{background:#0a0f1a;border:1px solid #1e2535;border-radius:10px;color:#e8eaf0;padding:11px 14px;font-size:14px;font-family:'DM Sans',sans-serif;width:100%;transition:border-color .2s;}
         .inp:focus{border-color:#f59e0b66;}
         .lbl{font-size:11px;font-weight:600;color:#6677aa;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;display:block;}
@@ -435,350 +424,40 @@ function Dashboard({ctx,onSelect}){
 }
 
 // ─── MEMBERS ─────────────────────────────────────────────────────────────────
-function Members({ctx, onSelect}){
-  const {members, tiers, setMembers, showToast} = ctx;
-  const [q, setQ] = useState("");
-  const [editingMember, setEditingMember] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
-
-  const filtered = members.filter(m => 
-    m.name.toLowerCase().includes(q.toLowerCase()) || 
-    m.phone.includes(q)
-  );
-
-  // Start editing a member
-  const startEdit = (member) => {
-    setEditingMember(member.id);
-    setEditForm({
-      name: member.name,
-      phone: member.phone,
-      pin: member.pin || "0000",
-      birthday: member.birthday || "",
-      merchantCode: member.merchantCode || "",
-      referredBy: member.referredBy || ""
-    });
-  };
-
-  // Cancel editing
-  const cancelEdit = () => {
-    setEditingMember(null);
-    setEditForm({});
-  };
-
-  // Save edited member
-  const saveEdit = async () => {
-    if (!editForm.name.trim()) {
-      showToast("Name is required.", "error");
-      return;
-    }
-    if (editForm.phone.replace(/\D/g,"").length < 10) {
-      showToast("Valid phone number required.", "error");
-      return;
-    }
-    if (editForm.pin && !/^\d{4}$/.test(editForm.pin)) {
-      showToast("PIN must be exactly 4 digits.", "error");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      setMembers(prev => prev.map(m => {
-        if (m.id === editingMember) {
-          return {
-            ...m,
-            name: editForm.name.trim(),
-            phone: editForm.phone,
-            pin: editForm.pin || "0000",
-            birthday: editForm.birthday || "",
-            merchantCode: editForm.merchantCode || "",
-            referredBy: editForm.referredBy || null
-          };
-        }
-        return m;
-      }));
-      showToast("Member updated successfully!");
-      setEditingMember(null);
-      setEditForm({});
-    } catch (error) {
-      showToast("Failed to update member.", "error");
-    }
-    setIsSaving(false);
-  };
-
-  // Delete a member
-  const deleteMember = async () => {
-    try {
-      setMembers(prev => prev.filter(m => m.id !== showDeleteConfirm));
-      showToast("Member deleted successfully!");
-      setShowDeleteConfirm(null);
-    } catch (error) {
-      showToast("Failed to delete member.", "error");
-    }
-  };
-
-  return (
-    <div className="fi">
-      <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24}}>
-        <div>
-          <h1 style={{fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:900, color:"#e8eaf0"}}>Members</h1>
-          <p style={{color:"#5566aa", fontSize:14, marginTop:4}}>{members.length} enrolled</p>
-        </div>
-        <input 
-          className="inp" 
-          placeholder="Search name or phone…" 
-          value={q} 
-          onChange={e => setQ(e.target.value)} 
-          style={{width:240}}
-        />
+function Members({ctx,onSelect}){
+  const {members,tiers}=ctx;
+  const [q,setQ]=useState("");
+  const filtered=members.filter(m=>m.name.toLowerCase().includes(q.toLowerCase())||m.phone.includes(q));
+  return <div className="fi">
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
+      <div>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Members</h1>
+        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>{members.length} enrolled</p>
       </div>
-
-      <div className="card" style={{overflow: "hidden"}}>
-        <table style={{width:"100%", borderCollapse:"collapse"}}>
-          <thead>
-            <tr style={{borderBottom:"1px solid #1a2030"}}>
-              {["Member", "Phone", "Tier", "Points", "Referred By", "Birthday", "Joined", "Actions"].map(h => (
-                <th key={h} style={{padding:"14px 20px", textAlign:"left", fontSize:11, fontWeight:600, color:"#445566", letterSpacing:.8, textTransform:"uppercase"}}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(m => {
-              const tier = getTier(m.points, tiers);
-              const ref = members.find(x => x.id === m.referredBy);
-              const isEditing = editingMember === m.id;
-
-              if (isEditing) {
-                return (
-                  <tr key={m.id} style={{borderBottom:"1px solid #0e1825", background:"#0d1a2a"}}>
-                    <td style={{padding:"10px 16px"}}>
-                      <input 
-                        className="inp" 
-                        value={editForm.name} 
-                        onChange={e => setEditForm(f => ({...f, name: e.target.value}))}
-                        style={{padding:"6px 10px", fontSize:13, width:"100%", minWidth:120}}
-                      />
-                    </td>
-                    <td style={{padding:"10px 16px"}}>
-                      <input 
-                        className="inp" 
-                        value={editForm.phone} 
-                        onChange={e => setEditForm(f => ({...f, phone: fmtPhone(e.target.value)}))}
-                        style={{padding:"6px 10px", fontSize:13, width:"100%", minWidth:120}}
-                      />
-                    </td>
-                    <td style={{padding:"10px 16px"}}>
-                      <TierBadge tier={tier}/>
-                    </td>
-                    <td style={{padding:"10px 16px", fontWeight:700, color:tier.color, fontSize:14}}>
-                      {m.points.toLocaleString()}
-                    </td>
-                    <td style={{padding:"10px 16px"}}>
-                      <select 
-                        className="inp" 
-                        value={editForm.referredBy} 
-                        onChange={e => setEditForm(f => ({...f, referredBy: e.target.value}))}
-                        style={{padding:"6px 10px", fontSize:12, width:"100%", minWidth:100}}
-                      >
-                        <option value="">— None —</option>
-                        {members.filter(member => member.id !== m.id).map(member => (
-                          <option key={member.id} value={member.id}>{member.name}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td style={{padding:"10px 16px"}}>
-                      <div style={{display:"flex", gap:6, alignItems:"center"}}>
-                        <select 
-                          className="inp" 
-                          value={editForm.birthday ? editForm.birthday.split("-")[0] : ""} 
-                          onChange={e => {
-                            const day = editForm.birthday ? editForm.birthday.split("-")[1] || "01" : "01";
-                            setEditForm(f => ({...f, birthday: e.target.value ? `${e.target.value}-${day}` : ""}));
-                          }}
-                          style={{padding:"6px 8px", fontSize:11, width:80}}
-                        >
-                          <option value="">Month</option>
-                          {["01","02","03","04","05","06","07","08","09","10","11","12"].map((month, i) => (
-                            <option key={month} value={month}>
-                              {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i]}
-                            </option>
-                          ))}
-                        </select>
-                        <select 
-                          className="inp" 
-                          value={editForm.birthday ? editForm.birthday.split("-")[1] || "" : ""} 
-                          onChange={e => {
-                            const month = editForm.birthday ? editForm.birthday.split("-")[0] || "01" : "01";
-                            setEditForm(f => ({...f, birthday: month && e.target.value ? `${month}-${e.target.value}` : ""}));
-                          }}
-                          style={{padding:"6px 8px", fontSize:11, width:60}}
-                        >
-                          <option value="">Day</option>
-                          {Array.from({length:31}, (_, i) => String(i + 1).padStart(2, "0")).map(d => (
-                            <option key={d} value={d}>{parseInt(d)}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-                    <td style={{padding:"10px 16px", color:"#5566aa", fontSize:12}}>{m.joinedAt}</td>
-                    <td style={{padding:"10px 16px"}}>
-                      <div style={{display:"flex", gap:6, alignItems:"center", flexWrap:"wrap"}}>
-                        <button 
-                          className="btn" 
-                          onClick={saveEdit} 
-                          disabled={isSaving}
-                          style={{padding:"6px 14px", fontSize:11, opacity: isSaving ? 0.6 : 1}}
-                        >
-                          {isSaving ? "Saving…" : "💾"}
-                        </button>
-                        <button 
-                          className="btn-g" 
-                          onClick={cancelEdit}
-                          style={{padding:"6px 14px", fontSize:11}}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              }
-
-              return (
-                <tr key={m.id} className="row" style={{borderBottom:"1px solid #0e1825", cursor:"pointer", transition:"background .15s"}}>
-                  <td 
-                    style={{padding:"14px 20px", fontWeight:600, color:"#ccd", fontSize:14}}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    {m.name}
-                  </td>
-                  <td 
-                    style={{padding:"14px 20px", color:"#8899bb", fontSize:13}}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    {m.phone}
-                  </td>
-                  <td 
-                    style={{padding:"14px 20px"}}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    <TierBadge tier={tier}/>
-                  </td>
-                  <td 
-                    style={{padding:"14px 20px", fontWeight:700, color:tier.color, fontSize:14}}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    {m.points.toLocaleString()}
-                  </td>
-                  <td 
-                    style={{padding:"14px 20px", color:"#6677aa", fontSize:13}}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    {ref ? ref.name : <span style={{color:"#2a3a55"}}>—</span>}
-                  </td>
-                  <td 
-                    style={{padding:"14px 20px", color:"#f59e0b", fontSize:12}}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    {m.birthday ? fmtBirthday(m.birthday, "short") || "—" : <span style={{color:"#2a3a55"}}>—</span>}
-                  </td>
-                  <td 
-                    style={{padding:"14px 20px", color:"#5566aa", fontSize:12}}
-                    onClick={() => onSelect(m.id)}
-                  >
-                    {m.joinedAt}
-                  </td>
-                  <td style={{padding:"14px 20px"}}>
-                    <div style={{display:"flex", gap:6, alignItems:"center"}}>
-                      <button 
-                        className="btn-g" 
-                        onClick={(e) => { e.stopPropagation(); startEdit(m); }}
-                        style={{padding:"4px 12px", fontSize:11}}
-                      >
-                        ✏️
-                      </button>
-                      <button 
-                        className="btn-d" 
-                        onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(m.id); }}
-                        style={{padding:"4px 12px", fontSize:11}}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div style={{textAlign:"center", padding:"40px", color:"#2a3a55", fontSize:13}}>
-            No members found.
-          </div>
-        )}
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div 
-          style={{
-            position:"fixed", 
-            inset:0, 
-            background:"rgba(0,0,0,.7)", 
-            display:"flex", 
-            alignItems:"center", 
-            justifyContent:"center", 
-            zIndex:9999,
-            padding:20
-          }}
-          onClick={() => setShowDeleteConfirm(null)}
-        >
-          <div 
-            className="si card" 
-            style={{
-              padding:"32px", 
-              maxWidth:420, 
-              width:"100%", 
-              background:"#0e1420", 
-              border:"1px solid #3a1a1a",
-              textAlign:"center"
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{fontSize:48, marginBottom:16}}>⚠️</div>
-            <div style={{fontFamily:"'Playfair Display',serif", fontSize:22, color:"#e8eaf0", marginBottom:8}}>
-              Delete Member?
-            </div>
-            <div style={{color:"#5566aa", fontSize:14, marginBottom:24, lineHeight:1.6}}>
-              Are you sure you want to delete <strong style={{color:"#ccd"}}>
-                {members.find(m => m.id === showDeleteConfirm)?.name}
-              </strong>?<br/>
-              This action <strong style={{color:"#f87171"}}>cannot be undone</strong>.
-            </div>
-            <div style={{display:"flex", gap:12, justifyContent:"center"}}>
-              <button 
-                className="btn-d" 
-                onClick={deleteMember}
-                style={{padding:"10px 28px", fontSize:14}}
-              >
-                Yes, Delete
-              </button>
-              <button 
-                className="btn-g" 
-                onClick={() => setShowDeleteConfirm(null)}
-                style={{padding:"10px 28px", fontSize:14}}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <input className="inp" placeholder="Search name or phone…" value={q} onChange={e=>setQ(e.target.value)} style={{width:240}}/>
     </div>
-  );
+    <div className="card" style={{overflow:"hidden"}}>
+      <table style={{width:"100%",borderCollapse:"collapse"}}>
+        <thead><tr style={{borderBottom:"1px solid #1a2030"}}>
+          {["Member","Phone","Tier","Points","Referred By","Birthday","Joined"].map(h=><th key={h} style={{padding:"14px 20px",textAlign:"left",fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</th>)}
+        </tr></thead>
+        <tbody>
+          {filtered.map(m=>{
+            const tier=getTier(m.points,tiers);const ref=members.find(x=>x.id===m.referredBy);
+            return <tr key={m.id} className="row" onClick={()=>onSelect(m.id)} style={{borderBottom:"1px solid #0e1825",cursor:"pointer"}}>
+              <td style={{padding:"14px 20px",fontWeight:600,color:"#ccd",fontSize:14,transition:"background .15s"}}>{m.name}</td>
+              <td style={{padding:"14px 20px",color:"#8899bb",fontSize:13}}>{m.phone}</td>
+              <td style={{padding:"14px 20px"}}><TierBadge tier={tier}/></td>
+              <td style={{padding:"14px 20px",fontWeight:700,color:tier.color,fontSize:14}}>{m.points.toLocaleString()}</td>
+              <td style={{padding:"14px 20px",color:"#6677aa",fontSize:13}}>{ref?ref.name:<span style={{color:"#2a3a55"}}>—</span>}</td>
+              <td style={{padding:"14px 20px",color:"#f59e0b",fontSize:12}}>{m.birthday?fmtBirthday(m.birthday,"short")||"—":<span style={{color:"#2a3a55"}}>—</span>}</td>
+              <td style={{padding:"14px 20px",color:"#5566aa",fontSize:12}}>{m.joinedAt}</td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+    </div>
+  </div>;
 }
 
 // ─── ENROLL ───────────────────────────────────────────────────────────────────
@@ -1753,7 +1432,7 @@ function WelcomeConfig({appConfig,setAppConfig,showToast}){
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 function Config({ctx}){
-  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig}=ctx;
+  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig,setMembers,setMerchants}=ctx;
   const [tab,setTab]=useState("tiers");
   const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
   const [pwErr,setPwErr]=useState("");
@@ -1761,6 +1440,45 @@ function Config({ctx}){
   const [pwSaving,setPwSaving]=useState(false);
   const upT=(id,f,v)=>setTiers(p=>p.map(t=>t.id===id?{...t,[f]:f==="minPoints"||f==="multiplier"?Number(v):v}:t));
   const upR=(lv,f,v)=>setRefLevels(p=>p.map(r=>r.level===lv?{...r,[f]:f==="overridePercent"?Number(v):v}:r));
+
+  // ── NEW HARD RESET FUNCTION ──
+  const handleResetApp = async () => {
+    if (!window.confirm("⚠️ WARNING: This will permanently delete ALL members, merchants, points, transactions, referral levels, and tier settings from the Firebase database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?")) return;
+
+    if (!window.confirm("Final confirmation: Are you ABSOLUTELY sure you want to wipe all data?")) return;
+
+    setSyncing(true);
+    try {
+      // 1. Reset Tiers to Default
+      await saveTiers(DEFAULT_TIERS);
+      setTiers(DEFAULT_TIERS);
+
+      // 2. Reset Referral Levels to Default
+      await saveRefLevels(DEFAULT_REF);
+      setRefLevels(DEFAULT_REF);
+
+      // 3. Reset Merchants to Empty
+      await saveMerchants([]);
+      setMerchants([]);
+
+      // 4. Reset Members to Empty
+      await saveMembers([]);
+      setMembers([]);
+
+      showToast("✅ All members, merchants, and points have been permanently wiped.", "success");
+      
+      // Reload the page to ensure the UI and cache completely refresh from Firebase
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (error) {
+      console.error("Reset error:", error);
+      showToast("❌ Failed to reset data. Check console for details.", "error");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const changePw=async()=>{
     const {adminPw:storedPw,setAdminPw}=ctx;
@@ -1784,12 +1502,12 @@ function Config({ctx}){
       <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-      {["tiers","referral","welcome","password"].map(t=>(
+      {["tiers","referral","welcome","password","danger"].map(t=>(
         <button key={t} onClick={()=>setTab(t)}
           style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
-            background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
-            color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":"🔑 Admin Password"}
+            background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+            color:tab===t.id?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":t==="password"?"🔑 Admin Password":"⚠️ Danger Zone"}
         </button>
       ))}
     </div>
@@ -1843,6 +1561,31 @@ function Config({ctx}){
       ))}
       {pwErr&&<div style={{color:"#f87171",fontSize:13,background:"#2a0d0d",border:"1px solid #5a1a1a",borderRadius:8,padding:"10px 14px"}}>{pwErr}</div>}
       <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px",opacity:pwSaving?0.6:1}} disabled={pwSaving}>{pwSaving?"Saving…":"🔑 Change Password"}</button>
+    </div>}
+
+    {tab==="danger"&&<div className="si card" style={{padding:"28px 30px",maxWidth:480,display:"flex",flexDirection:"column",gap:24,border:"1px solid #4a1a1a",background:"#120a0a"}}>
+      <div>
+        <div style={{fontWeight:700,color:"#ff6b6b",fontSize:16,marginBottom:4}}>⚠️ Danger Zone</div>
+        <div style={{fontSize:13,color:"#aa6666"}}>Permanently delete all data from the Firebase Realtime Database.</div>
+      </div>
+      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontWeight:600,color:"#e8eaf0",fontSize:14}}>Reset All App Data</div>
+            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Deletes all members, merchants, points, transactions, tiers, and referral levels permanently.</div>
+          </div>
+          <button 
+            className="btn-danger" 
+            onClick={handleResetApp}
+            style={{padding:"10px 24px",fontWeight:700,fontSize:13}}
+          >
+            ✕ Wipe Data
+          </button>
+        </div>
+      </div>
+      <div style={{fontSize:12,color:"#6a3a3a",lineHeight:1.8,borderTop:"1px solid #2a0a0a",paddingTop:16}}>
+        <strong style={{color:"#aa5555"}}>Warning:</strong> This action is irreversible and will immediately wipe the live data visible to all merchants and members.
+      </div>
     </div>}
   </div>;
 }
@@ -3142,130 +2885,129 @@ function MerchantDashboard({merchants,members,tiers,allAwardTxns,merchantSummary
     </div>
   );
 }
-
 // ─── QR MODAL ────────────────────────────────────────────────────────────────
 function QRModal({merchant,onClose}){
-  const MEMBER_BASE = "https://sasbigpos.github.io/loyaltyapp/member/";
-  const [customUrl, setCustomUrl] = useState(MEMBER_BASE);
-  const [editing, setEditing] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const MEMBER_BASE="https://sasbigpos.github.io/loyaltyapp/member/";
+  const [customUrl,setCustomUrl]=useState(MEMBER_BASE);
+  const [editing,setEditing]=useState(false);
+  const [copied,setCopied]=useState(false);
 
   // Clean URL: remove trailing slashes, add exactly one, then query string
-  const regUrl = customUrl.replace(/\/+$/, "") + "/?mc=" + merchant.code;
-  const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=" + encodeURIComponent(regUrl) + "&bgcolor=ffffff&color=000000&qzone=2&format=png";
-  const qrSrcFallback = "https://chart.googleapis.com/chart?chs=240x240&cht=qr&chl=" + encodeURIComponent(regUrl) + "&choe=UTF-8";
+  const regUrl=customUrl.replace(/\/+$/,"")+"/?mc="+merchant.code;
+  const qrSrc="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data="+encodeURIComponent(regUrl)+"&bgcolor=ffffff&color=000000&qzone=2&format=png";
+  const qrSrcFallback="https://chart.googleapis.com/chart?chs=240x240&cht=qr&chl="+encodeURIComponent(regUrl)+"&choe=UTF-8";
 
-  const copyUrl = () => {
+  const copyUrl=()=>{
     navigator.clipboard?.writeText(regUrl)
-      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
-      .catch(() => {
+      .then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);})
+      .catch(()=>{
         // Fallback for browsers without clipboard API
-        const ta = document.createElement("textarea");
-        ta.value = regUrl; document.body.appendChild(ta); ta.select();
-        document.execCommand("copy"); document.body.removeChild(ta);
-        setCopied(true); setTimeout(() => setCopied(false), 2000);
+        const ta=document.createElement("textarea");
+        ta.value=regUrl;document.body.appendChild(ta);ta.select();
+        document.execCommand("copy");document.body.removeChild(ta);
+        setCopied(true);setTimeout(()=>setCopied(false),2000);
       });
   };
 
   return(
-    <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,.8)", display:"flex",
-      alignItems:"center", justifyContent:"center", zIndex:9999, padding:20}}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="si card" style={{padding:"28px", maxWidth:420, width:"100%",
-        background:"#0e1420", border:"1px solid #1e2535", position:"relative", maxHeight:"90vh", overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",
+      alignItems:"center",justifyContent:"center",zIndex:9999,padding:20}}
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="si card" style={{padding:"28px",maxWidth:420,width:"100%",
+        background:"#0e1420",border:"1px solid #1e2535",position:"relative",maxHeight:"90vh",overflowY:"auto"}}>
         <button onClick={onClose}
-          style={{position:"absolute", top:14, right:14, background:"#1a2535", border:"none",
-            color:"#5566aa", borderRadius:"50%", width:30, height:30, fontSize:15, cursor:"pointer", lineHeight:"30px"}}>✕</button>
+          style={{position:"absolute",top:14,right:14,background:"#1a2535",border:"none",
+            color:"#5566aa",borderRadius:"50%",width:30,height:30,fontSize:15,cursor:"pointer",lineHeight:"30px"}}>✕</button>
 
-        <div style={{textAlign:"center", marginBottom:18}}>
-          <div style={{fontFamily:"'Playfair Display',serif", fontSize:18, color:"#e8eaf0", fontWeight:700, marginBottom:4}}>
+        <div style={{textAlign:"center",marginBottom:18}}>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#e8eaf0",fontWeight:700,marginBottom:4}}>
             Registration QR Code
           </div>
-          <div style={{fontSize:12, color:"#445566"}}>Member scans this to register under {merchant.name}</div>
+          <div style={{fontSize:12,color:"#445566"}}>Member scans this to register under {merchant.name}</div>
         </div>
 
         {/* Merchant badge */}
-        <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16,
-          padding:"10px 14px", background:"#0d2a1a", borderRadius:10, border:"1px solid #1a4a2a"}}>
-          <span style={{fontFamily:"monospace", fontWeight:800, fontSize:13, color:"#10b981",
-            background:"#0a1a0a", padding:"3px 8px", borderRadius:6}}>{merchant.code}</span>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,
+          padding:"10px 14px",background:"#0d2a1a",borderRadius:10,border:"1px solid #1a4a2a"}}>
+          <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#10b981",
+            background:"#0a1a0a",padding:"3px 8px",borderRadius:6}}>{merchant.code}</span>
           <div style={{flex:1}}>
-            <div style={{fontWeight:700, color:"#ccd", fontSize:13}}>{merchant.name}</div>
-            {merchant.address&&<div style={{fontSize:10, color:"#4a7a4a"}}>📍 {merchant.address}</div>}
+            <div style={{fontWeight:700,color:"#ccd",fontSize:13}}>{merchant.name}</div>
+            {merchant.address&&<div style={{fontSize:10,color:"#4a7a4a"}}>📍 {merchant.address}</div>}
           </div>
         </div>
 
         {/* Base URL config */}
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:10, color:"#445566", textTransform:"uppercase", letterSpacing:.8, marginBottom:6,
-            display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+          <div style={{fontSize:10,color:"#445566",textTransform:"uppercase",letterSpacing:.8,marginBottom:6,
+            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span>Member Portal Base URL</span>
-            <button onClick={() => setEditing(e => !e)}
-              style={{background:"none", border:"none", color:"#5566aa", fontSize:11, cursor:"pointer", textDecoration:"underline"}}>
-              {editing ? "Done" : "Edit"}
+            <button onClick={()=>setEditing(e=>!e)}
+              style={{background:"none",border:"none",color:"#5566aa",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>
+              {editing?"Done":"Edit"}
             </button>
           </div>
           {editing
-            ? <input className="inp" value={customUrl} onChange={e => setCustomUrl(e.target.value)}
-               style={{fontSize:12, padding:"8px 10px"}}
+            ?<input className="inp" value={customUrl} onChange={e=>setCustomUrl(e.target.value)}
+               style={{fontSize:12,padding:"8px 10px"}}
                placeholder="https://sasbigpos.github.io/loyaltyapp/member/"/>
-            : <div style={{background:"#080c12", borderRadius:8, padding:"8px 12px", border:"1px solid #1e2535",
-               fontSize:11, color:"#4a7a5a", wordBreak:"break-all", fontFamily:"monospace", lineHeight:1.5}}>
+            :<div style={{background:"#080c12",borderRadius:8,padding:"8px 12px",border:"1px solid #1e2535",
+               fontSize:11,color:"#4a7a5a",wordBreak:"break-all",fontFamily:"monospace",lineHeight:1.5}}>
                {customUrl}
              </div>
           }
-          <div style={{fontSize:10, color:"#2a3a55", marginTop:4}}>
+          <div style={{fontSize:10,color:"#2a3a55",marginTop:4}}>
             This must match your deployed member portal URL. Click Edit to change if needed.
           </div>
         </div>
 
         {/* Full registration URL */}
-        <div style={{marginBottom:16, background:"#080c12", borderRadius:8, padding:"10px 12px",
+        <div style={{marginBottom:16,background:"#080c12",borderRadius:8,padding:"10px 12px",
           border:"1px solid #1a3a1a"}}>
-          <div style={{fontSize:10, color:"#4a7a4a", marginBottom:4, fontWeight:600}}>REGISTRATION LINK</div>
-          <div style={{fontSize:11, color:"#10b981", wordBreak:"break-all", fontFamily:"monospace", lineHeight:1.6}}>
+          <div style={{fontSize:10,color:"#4a7a4a",marginBottom:4,fontWeight:600}}>REGISTRATION LINK</div>
+          <div style={{fontSize:11,color:"#10b981",wordBreak:"break-all",fontFamily:"monospace",lineHeight:1.6}}>
             {regUrl}
           </div>
         </div>
 
         {/* QR Code */}
-        <div style={{textAlign:"center", marginBottom:16}}>
-          <div style={{display:"inline-block", padding:12, background:"#ffffff", borderRadius:12,
-            border:"2px solid #1a4a2a", boxShadow:"0 4px 20px #10b98122"}}>
+        <div style={{textAlign:"center",marginBottom:16}}>
+          <div style={{display:"inline-block",padding:12,background:"#ffffff",borderRadius:12,
+            border:"2px solid #1a4a2a",boxShadow:"0 4px 20px #10b98122"}}>
             <img src={qrSrc} alt={"QR-"+merchant.code} width={200} height={200}
-              onError={e => { e.target.onerror = null; e.target.src = qrSrcFallback; }}
-              style={{display:"block", background:"#fff"}}/>
+              onError={e=>{e.target.onerror=null;e.target.src=qrSrcFallback;}}
+              style={{display:"block",background:"#fff"}}/>
           </div>
-          <div style={{fontSize:10, color:"#2a3a55", marginTop:8}}>Scan with phone camera to open registration form</div>
+          <div style={{fontSize:10,color:"#2a3a55",marginTop:8}}>Scan with phone camera to open registration form</div>
         </div>
 
         {/* Action buttons */}
-        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
           <button className="btn" onClick={copyUrl}
-            style={{fontSize:12, padding:"10px", background:copied ? "linear-gradient(135deg,#10b981,#059669)" : "linear-gradient(135deg,#f59e0b,#f97316)"}}>
-            {copied ? "✓ Copied!" : "📋 Copy Link"}
+            style={{fontSize:12,padding:"10px",background:copied?"linear-gradient(135deg,#10b981,#059669)":"linear-gradient(135deg,#f59e0b,#f97316)"}}>
+            {copied?"✓ Copied!":"📋 Copy Link"}
           </button>
           <a href={regUrl} target="_blank" rel="noreferrer"
-            style={{display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:12, padding:"10px", borderRadius:8, background:"#0e1420",
-              border:"1px solid #1e2535", color:"#60a5fa", textDecoration:"none", fontFamily:"'DM Sans',sans-serif", fontWeight:600}}>
+            style={{display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:12,padding:"10px",borderRadius:8,background:"#0e1420",
+              border:"1px solid #1e2535",color:"#60a5fa",textDecoration:"none",fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>
             🔗 Test Link
           </a>
         </div>
-        <button onClick={() => {
-            const link = document.createElement("a");
-            link.href = "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=" + encodeURIComponent(regUrl) + "&bgcolor=ffffff&color=000000&qzone=2&format=png";
-            link.download = "QR-"+merchant.code+".png";
-            link.target = "_blank";
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        <button onClick={()=>{
+            const link=document.createElement("a");
+            link.href="https://api.qrserver.com/v1/create-qr-code/?size=600x600&data="+encodeURIComponent(regUrl)+"&bgcolor=ffffff&color=000000&qzone=2&format=png";
+            link.download="QR-"+merchant.code+".png";
+            link.target="_blank";
+            document.body.appendChild(link);link.click();document.body.removeChild(link);
           }}
-          style={{width:"100%", padding:"10px", background:"#0e1420", border:"1px solid #1e2535",
-            borderRadius:8, color:"#8899bb", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif"}}>
+          style={{width:"100%",padding:"10px",background:"#0e1420",border:"1px solid #1e2535",
+            borderRadius:8,color:"#8899bb",fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
           ⬇ Download QR Image
         </button>
 
-        <div style={{marginTop:12, fontSize:10, color:"#2a3a55", textAlign:"center", lineHeight:1.6}}>
-          Merchant code <span style={{color:"#10b981", fontFamily:"monospace", fontWeight:700}}>{merchant.code}</span> is pre-filled and hidden from the member when they register via this QR.
+        <div style={{marginTop:12,fontSize:10,color:"#2a3a55",textAlign:"center",lineHeight:1.6}}>
+          Merchant code <span style={{color:"#10b981",fontFamily:"monospace",fontWeight:700}}>{merchant.code}</span> is pre-filled and hidden from the member when they register via this QR.
         </div>
       </div>
     </div>
