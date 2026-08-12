@@ -153,10 +153,8 @@ export default function MerchantApp() {
     let membersUpdated = false;
 
     const updatedMembers = currentMembers.map(m => {
-      // If the member already has this merchant code, skip them.
       if (m.merchantCode === merchantCodeToUse) return m;
 
-      // Check if this member has EVER received a transaction from this merchant.
       const hasAwardFromMerchant = (m.transactions || []).some(
         t => t.merchantCode === merchantCodeToUse
       );
@@ -168,7 +166,6 @@ export default function MerchantApp() {
       return m;
     });
 
-    // Only save back to storage and update state if changes were made
     if (membersUpdated) {
       window.storage.set(KEYS.members, JSON.stringify(updatedMembers), true);
       setMembers(updatedMembers);
@@ -218,7 +215,6 @@ export default function MerchantApp() {
       const effectivePts = Math.round(pts * tier.multiplier);
       const note = noteInput.trim() || `Awarded via ${merchantData.name}`;
 
-      // Update member with new points
       const updatedMembers = members.map(m => {
         if (m.id === selectedMember.id) {
           return {
@@ -401,10 +397,12 @@ export default function MerchantApp() {
   }
 
   // ─── MAIN MERCHANT DASHBOARD ──────────────────────────────────────────────
-  // Define responsive styling constants
   const isMobileDevice = isMobile;
   const mainPadding = isMobileDevice ? "16px" : "32px 36px";
   const maxWidth = isMobileDevice ? "100%" : 900;
+
+  // Helper to get the current month/year for the filter
+  const currentMonthYear = new Date().toLocaleDateString("en-MY", { month: "short", year: "numeric" });
 
   return (
     <div style={{ minHeight: "100vh", background: "#080c12", color: "#e8eaf0", fontFamily: "'DM Sans','Segoe UI',sans-serif" }}>
@@ -630,7 +628,7 @@ export default function MerchantApp() {
         {/* ─── STATS ────────────────────────────────────────────────────────── */}
         <div style={{ 
           display: "grid", 
-          gridTemplateColumns: isMobileDevice ? "1fr" : "repeat(3,1fr)", 
+          gridTemplateColumns: isMobileDevice ? "1fr 1fr" : "repeat(4, 1fr)", 
           gap: 16, 
           marginTop: 24 
         }}>
@@ -640,24 +638,42 @@ export default function MerchantApp() {
             <div style={{ fontSize: 9, color: "#2a3a55", marginTop: 2 }}>in the system</div>
           </div>
           
-          {/* ✅ FIXED STAT CARD: Sums only the transaction amounts issued by this merchant */}
+          {/* TOTAL POINTS ISSUED CARD */}
           <div className="card" style={{ padding: "18px 20px", textAlign: "center" }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: "#f59e0b" }}>
               {members
                 .reduce((sum, m) => {
-                  // Find only the transactions issued by the logged-in merchant
                   const merchantTransactions = (m.transactions || []).filter(
                     t => t.merchantCode === merchantData?.code
                   );
-                  // Sum the pts from those specific transactions
                   const merchantTotal = merchantTransactions.reduce((s, t) => s + t.pts, 0);
                   return sum + merchantTotal;
                 }, 0)
                 .toLocaleString()}
             </div>
-            <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>Points Issued by You</div>
+            <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>Total Points Issued</div>
             <div style={{ fontSize: 9, color: "#2a3a55", marginTop: 2 }}>
               {merchantData?.name || merchantData?.code}
+            </div>
+          </div>
+
+          {/* THIS MONTH'S POINTS ISSUED CARD (New) */}
+          <div className="card" style={{ padding: "18px 20px", textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#f472b6" }}>
+              {members
+                .reduce((sum, m) => {
+                  // Filter for this merchant's transactions issued in the current month/year
+                  const currentMonthTransactions = (m.transactions || []).filter(
+                    t => t.merchantCode === merchantData?.code && t.date === today()
+                  );
+                  const monthTotal = currentMonthTransactions.reduce((s, t) => s + t.pts, 0);
+                  return sum + monthTotal;
+                }, 0)
+                .toLocaleString()}
+            </div>
+            <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>This Month's Points Issued</div>
+            <div style={{ fontSize: 9, color: "#2a3a55", marginTop: 2 }}>
+              {currentMonthYear}
             </div>
           </div>
 
