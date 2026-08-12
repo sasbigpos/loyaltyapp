@@ -2193,7 +2193,9 @@ function AllTransactions({ctx,onSelect}){
 
 // ─── MERCHANTS PAGE ───────────────────────────────────────────────────────────
 function MerchantsPage({ctx}){
-  const {members,merchants,setMerchants,showToast}=ctx;
+  // Removed "setMerchants" from this destructuring to fix the build error.
+  // The global setMerchants is passed via ctx.
+  const {members, merchants, showToast} = ctx;
   const [tab,setTab]=useState("setup"); // setup | report
   const [newName,setNewName]=useState("");
   const [newCode,setNewCode]=useState("");
@@ -2203,6 +2205,9 @@ function MerchantsPage({ctx}){
   const [err,setErr]=useState("");
   const [saving,setSaving]=useState(false);
   const [qrMerchant,setQrMerchant]=useState(null); // merchant to show QR for
+
+  // Use the global setMerchants from ctx safely
+  const setMerchants = ctx.setMerchants;
 
   const saveMerchants=async(next)=>{
     setSaving(true);
