@@ -355,7 +355,7 @@ export default function AdminApp() {
         .inp{background:#0a0f1a;border:1px solid #1e2535;border-radius:10px;color:#e8eaf0;padding:11px 14px;font-size:14px;font-family:'DM Sans',sans-serif;width:100%;transition:border-color .2s;}
         .inp:focus{border-color:#f59e0b66;}
         .lbl{font-size:11px;font-weight:600;color:#6677aa;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;display:block;}
-        .nav{padding:10px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;display:flex;align-items:center;gap:9px;color:#6677aa;}
+        .nav{padding:10px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;display:flex;alignItems:"center";gap:9px;color:#6677aa;}
         .nav:hover{background:#0e1420;color:#ccd;}
         .nav.on{background:#1a2035;color:#f59e0b;font-weight:600;}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
