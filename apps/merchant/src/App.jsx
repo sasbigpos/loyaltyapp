@@ -146,6 +146,33 @@ export default function MerchantApp() {
     setMerchantData(merchant);
     setAuthenticated(true);
     showToast(`Welcome, ${merchant.name}!`);
+
+    // ⭐ BACKFILL LOGIC: Associate existing members with this merchant on login
+    const currentMembers = members;
+    const merchantCodeToUse = merchant.code;
+    let membersUpdated = false;
+
+    const updatedMembers = currentMembers.map(m => {
+      // If the member already has this merchant code, skip them.
+      if (m.merchantCode === merchantCodeToUse) return m;
+
+      // Check if this member has EVER received a transaction from this merchant.
+      const hasAwardFromMerchant = (m.transactions || []).some(
+        t => t.merchantCode === merchantCodeToUse
+      );
+
+      if (hasAwardFromMerchant) {
+        membersUpdated = true;
+        return { ...m, merchantCode: merchantCodeToUse };
+      }
+      return m;
+    });
+
+    // Only save back to storage and update state if changes were made
+    if (membersUpdated) {
+      window.storage.set(KEYS.members, JSON.stringify(updatedMembers), true);
+      setMembers(updatedMembers);
+    }
   };
 
   // ── Find member by phone ──────────────────────────────────────────────────
