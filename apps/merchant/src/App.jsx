@@ -50,6 +50,7 @@ export default function MerchantApp() {
   const [merchants, setMerchants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Merchant authentication
   const [merchantCode, setMerchantCode] = useState("");
@@ -73,6 +74,14 @@ export default function MerchantApp() {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  // ── Mobile Detection ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // ── Load data ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -129,7 +138,6 @@ export default function MerchantApp() {
       return;
     }
 
-    // Simple password check - merchant code itself is the password
     if (merchantPass !== merchant.code) {
       setAuthError("Invalid password. Try using the merchant code as password.");
       return;
@@ -188,7 +196,7 @@ export default function MerchantApp() {
         if (m.id === selectedMember.id) {
           return {
             ...m,
-            merchantCode: merchantData.code, // <--- FIX ADDED HERE
+            merchantCode: merchantData.code,
             points: m.points + effectivePts,
             transactions: [{
               id: genId(),
@@ -204,7 +212,6 @@ export default function MerchantApp() {
         return m;
       });
 
-      // Also add referral overrides
       const ancs = getAncestors(members, selectedMember.id, refLevels.length);
       const overrideMap = {};
       ancs.forEach(a => {
@@ -233,13 +240,9 @@ export default function MerchantApp() {
         return m;
       });
 
-      // Save to Firebase
       await window.storage.set(KEYS.members, JSON.stringify(finalMembers), true);
-      
-      // Update local state
       setMembers(finalMembers);
       
-      // Record recent award
       setRecentAwards(prev => [{
         memberName: selectedMember.name,
         points: effectivePts,
@@ -251,7 +254,6 @@ export default function MerchantApp() {
 
       showToast(`✅ ${effectivePts.toLocaleString()} pts awarded to ${selectedMember.name} (${pts} base × ${tier.multiplier}x tier multiplier)`);
       
-      // Reset form
       setPointsInput("");
       setNoteInput("");
       setSelectedMember(null);
@@ -372,6 +374,11 @@ export default function MerchantApp() {
   }
 
   // ─── MAIN MERCHANT DASHBOARD ──────────────────────────────────────────────
+  // Define responsive styling constants
+  const isMobileDevice = isMobile;
+  const mainPadding = isMobileDevice ? "16px" : "32px 36px";
+  const maxWidth = isMobileDevice ? "100%" : 900;
+
   return (
     <div style={{ minHeight: "100vh", background: "#080c12", color: "#e8eaf0", fontFamily: "'DM Sans','Segoe UI',sans-serif" }}>
       <style>{`
@@ -402,14 +409,14 @@ export default function MerchantApp() {
       `}</style>
 
       {/* ─── HEADER ────────────────────────────────────────────────────────── */}
-      <div style={{ background: "#0e1420", borderBottom: "1px solid #1a2030", padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 900, color: "#10b981" }}>B LOYALTY</div>
-          <div style={{ fontSize: 9, color: "#2a3a4a", letterSpacing: 2, textTransform: "uppercase" }}>Merchant Portal</div>
+      <div style={{ background: "#0e1420", borderBottom: "1px solid #1a2030", padding: isMobileDevice ? "12px 16px" : "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobileDevice ? 6 : 12, flexWrap: "wrap" }}>
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: isMobileDevice ? 18 : 20, fontWeight: 900, color: "#10b981" }}>B LOYALTY</div>
+          <div style={{ fontSize: 9, color: "#2a3a4a", letterSpacing: 2, textTransform: "uppercase", display: isMobileDevice ? "none" : "block" }}>Merchant Portal</div>
           {merchantData && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 12, background: "#0d2a1a", border: "1px solid #1a4a2a", borderRadius: 99, padding: "4px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: isMobileDevice ? 0 : 12, background: "#0d2a1a", border: "1px solid #1a4a2a", borderRadius: 99, padding: isMobileDevice ? "2px 10px" : "4px 14px" }}>
               <span style={{ fontFamily: "monospace", fontWeight: 800, fontSize: 12, color: "#10b981" }}>{merchantData.code}</span>
-              <span style={{ fontSize: 11, color: "#4a7a4a" }}>{merchantData.name}</span>
+              <span style={{ fontSize: 11, color: "#4a7a4a", display: isMobileDevice ? "none" : "block" }}>{merchantData.name}</span>
             </div>
           )}
         </div>
@@ -421,23 +428,24 @@ export default function MerchantApp() {
       {/* ─── TOAST ──────────────────────────────────────────────────────────── */}
       {toast && (
         <div style={{
-          position: "fixed", top: 80, right: 28, background: toast.type === "success" ? "#0d2a1a" : "#2a0d0d",
+          position: "fixed", top: isMobileDevice ? 70 : 80, right: isMobileDevice ? 16 : 28, left: isMobileDevice ? 16 : "auto",
+          background: toast.type === "success" ? "#0d2a1a" : "#2a0d0d",
           border: `1px solid ${toast.type === "success" ? "#1a5a2a" : "#5a1a1a"}`,
           color: toast.type === "success" ? "#4ade80" : "#f87171",
           padding: "12px 20px", borderRadius: 12, fontSize: 14, fontWeight: 500, zIndex: 9999,
           animation: "toastIn .3s ease", boxShadow: "0 8px 32px #00000066",
-          fontFamily: "'DM Sans',sans-serif", maxWidth: 480
+          fontFamily: "'DM Sans',sans-serif"
         }}>
           {toast.msg}
         </div>
       )}
 
       {/* ─── MAIN CONTENT ──────────────────────────────────────────────────── */}
-      <div style={{ padding: "32px 36px", maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ padding: mainPadding, maxWidth: maxWidth, margin: "0 auto" }}>
 
         {/* Welcome */}
-        <div className="fi" style={{ marginBottom: 28 }}>
-          <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 900, color: "#e8eaf0" }}>
+        <div className="fi" style={{ marginBottom: isMobileDevice ? 20 : 28 }}>
+          <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: isMobileDevice ? 24 : 28, fontWeight: 900, color: "#e8eaf0" }}>
             Award Points
           </h1>
           <p style={{ color: "#5566aa", fontSize: 14, marginTop: 4 }}>
@@ -446,22 +454,30 @@ export default function MerchantApp() {
         </div>
 
         {/* ─── AWARD FORM ──────────────────────────────────────────────────── */}
-        <div className="card" style={{ padding: "28px 30px", marginBottom: 24 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div className="card" style={{ padding: isMobileDevice ? "20px" : "28px 30px", marginBottom: 24 }}>
+          <div style={{ display: "flex", flexDirection: isMobileDevice ? "column" : "row", gap: isMobileDevice ? 16 : 20 }}>
 
             {/* Left column: Member lookup */}
-            <div>
+            <div style={{ flex: 1 }}>
               <label className="lbl">Member Phone Number</label>
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: isMobileDevice ? "column" : "row", gap: 10 }}>
                 <input
                   className="inp"
                   placeholder="012-3456-789"
                   value={phoneInput}
                   onChange={e => setPhoneInput(fmtPhone(e.target.value))}
                   onKeyDown={e => e.key === "Enter" && findMember()}
-                  style={{ flex: 1 }}
+                  style={{ width: "100%" }}
                 />
-                <button className="btn" onClick={findMember} style={{ whiteSpace: "nowrap", padding: "11px 18px" }}>
+                <button 
+                  className="btn" 
+                  onClick={findMember} 
+                  style={{ 
+                    whiteSpace: "nowrap", 
+                    padding: isMobileDevice ? "12px" : "11px 18px",
+                    width: isMobileDevice ? "100%" : "auto"
+                  }}
+                >
                   Find
                 </button>
               </div>
@@ -470,13 +486,14 @@ export default function MerchantApp() {
               {selectedMember && (
                 <div style={{
                   marginTop: 14, background: "#0d2a1a", border: "1px solid #1a4a2a", borderRadius: 12,
-                  padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center"
+                  padding: "14px 16px", display: "flex", flexDirection: isMobileDevice ? "column" : "row",
+                  justifyContent: "space-between", alignItems: isMobileDevice ? "flex-start" : "center", gap: isMobileDevice ? 8 : 0
                 }}>
                   <div>
                     <div style={{ fontWeight: 700, color: "#e8eaf0", fontSize: 15 }}>{selectedMember.name}</div>
                     <div style={{ color: "#4a7a4a", fontSize: 12, marginTop: 2 }}>{selectedMember.phone}</div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
+                  <div style={{ textAlign: isMobileDevice ? "left" : "right" }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: "#f59e0b" }}>{selectedMember.points.toLocaleString()} pts</div>
                     <div style={{ fontSize: 10, color: getTier(selectedMember.points, tiers).color, fontWeight: 700 }}>
                       {getTier(selectedMember.points, tiers).icon} {getTier(selectedMember.points, tiers).name}
@@ -487,7 +504,7 @@ export default function MerchantApp() {
             </div>
 
             {/* Right column: Points input */}
-            <div>
+            <div style={{ flex: 1 }}>
               <label className="lbl">Points to Award</label>
               <input
                 className="inp"
@@ -504,7 +521,7 @@ export default function MerchantApp() {
                 <div style={{ marginTop: 8, fontSize: 12, color: "#4a7a4a" }}>
                   Tier multiplier: <span style={{ color: "#f59e0b", fontWeight: 700 }}>×{getTier(selectedMember.points, tiers).multiplier}</span>
                   {pointsInput && parseInt(pointsInput) > 0 && (
-                    <span style={{ marginLeft: 12 }}>
+                    <span style={{ marginLeft: 12, display: isMobileDevice ? "block" : "inline", marginTop: isMobileDevice ? 4 : 0 }}>
                       → <span style={{ color: "#4ade80", fontWeight: 700 }}>
                         {Math.round(parseInt(pointsInput) * getTier(selectedMember.points, tiers).multiplier).toLocaleString()} pts
                       </span> effective
@@ -534,7 +551,7 @@ export default function MerchantApp() {
               onClick={awardPoints}
               disabled={!selectedMember || !pointsInput || isAwarding}
               style={{
-                width: "100%", padding: "14px", fontSize: 15,
+                width: "100%", padding: isMobileDevice ? "16px" : "14px", fontSize: 15,
                 opacity: (!selectedMember || !pointsInput || isAwarding) ? 0.5 : 1
               }}
             >
@@ -550,7 +567,7 @@ export default function MerchantApp() {
         </div>
 
         {/* ─── RECENT AWARDS ──────────────────────────────────────────────── */}
-        <div className="card" style={{ padding: "20px 24px" }}>
+        <div className="card" style={{ padding: isMobileDevice ? "16px" : "20px 24px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <div style={{ fontWeight: 700, color: "#ccd", fontSize: 15 }}>Recent Awards</div>
             <span style={{ fontSize: 11, color: "#445566" }}>{recentAwards.length} awards</span>
@@ -564,15 +581,16 @@ export default function MerchantApp() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {recentAwards.map((award, i) => (
                 <div key={i} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  display: "flex", flexDirection: isMobileDevice ? "column" : "row",
+                  justifyContent: "space-between", alignItems: isMobileDevice ? "flex-start" : "center",
                   padding: "10px 14px", background: "#0a0f1a", borderRadius: 10,
-                  border: "1px solid #1e2535"
+                  border: "1px solid #1e2535", gap: isMobileDevice ? 4 : 0
                 }}>
                   <div>
                     <div style={{ fontWeight: 600, color: "#ccd", fontSize: 13 }}>{award.memberName}</div>
                     <div style={{ fontSize: 11, color: "#445566" }}>{award.merchant} · {award.time}</div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
+                  <div style={{ textAlign: isMobileDevice ? "left" : "right" }}>
                     <div style={{ fontWeight: 800, color: "#4ade80", fontSize: 14 }}>+{award.points.toLocaleString()} pts</div>
                     <div style={{ fontSize: 10, color: "#445566" }}>{award.tier} · {award.basePoints} base pts</div>
                   </div>
@@ -583,7 +601,12 @@ export default function MerchantApp() {
         </div>
 
         {/* ─── STATS ────────────────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginTop: 24 }}>
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: isMobileDevice ? "1fr" : "repeat(3,1fr)", 
+          gap: 16, 
+          marginTop: 24 
+        }}>
           <div className="card" style={{ padding: "18px 20px", textAlign: "center" }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: "#10b981" }}>{members.length}</div>
             <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>Total Members</div>
