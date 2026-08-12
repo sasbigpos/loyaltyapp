@@ -210,6 +210,7 @@ export default function AdminApp() {
     setSyncing(true);
     setRefState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveRefLevels(next).finally(()=>setSyncing(false));return next;});
   },[]);
+  // ⭐ setMerchants is only declared ONCE here globally
   const setMerchants = useCallback(async(fn)=>{
     setSyncing(true);
     setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
@@ -243,7 +244,7 @@ export default function AdminApp() {
     return newM;
   };
 
-  // ─── HARD RESET FUNCTIONS ──────────────────────────────────────────────────
+  // ─── HARD RESET FUNCTIONS (NEW) ────────────────────────────────────────────
 
   // Action 1: Reset Only Points and Transactions (Keeps Members, Merchants, Tiers)
   const handleResetPoints = async () => {
