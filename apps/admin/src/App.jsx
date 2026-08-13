@@ -197,12 +197,6 @@ export default function AdminApp() {
     return () => { unsubs.forEach(fn => fn && fn()); clearTimeout(safetyTimer); };
   },[]);
 
-  // ⭐ FIXED HELPER: Changed setMerchants to setMerchantsState to prevent recursion crash
-  const setMerchants = useCallback(async(fn)=>{
-    setSyncing(true);
-    setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
-  }, []);
-
   // Persist helpers (write-through)
   const setMembers = useCallback(async(fn)=>{
     setSyncing(true);
@@ -216,6 +210,11 @@ export default function AdminApp() {
     setSyncing(true);
     setRefState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveRefLevels(next).finally(()=>setSyncing(false));return next;});
   },[]);
+  // ⭐ setMerchants is defined strictly ONCE here
+  const setMerchants = useCallback(async(fn)=>{
+    setSyncing(true);
+    setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
+  }, []);
 
   // Award points + cascade referral overrides
   const awardPoints = (memberId, basePts, note, merchantCode="", icon="◆") => {
