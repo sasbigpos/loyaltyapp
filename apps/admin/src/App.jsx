@@ -210,7 +210,8 @@ export default function AdminApp() {
     setSyncing(true);
     setRefState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveRefLevels(next).finally(()=>setSyncing(false));return next;});
   },[]);
-  // ⭐ setMerchants is defined strictly ONCE here
+  
+  // ⭐ GLOBAL setMerchants defined ONCE here
   const setMerchants = useCallback(async(fn)=>{
     setSyncing(true);
     setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
@@ -2205,6 +2206,7 @@ function MerchantsPage({ctx}){
   const [saving,setSaving]=useState(false);
   const [qrMerchant,setQrMerchant]=useState(null); // merchant to show QR for
 
+  // ⭐ FIX: Using the global setMerchants from the context
   const setMerchants = ctx.setMerchants;
 
   const saveMerchants=async(next)=>{
