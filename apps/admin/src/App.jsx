@@ -21,16 +21,8 @@ const DEFAULT_REF = [
   { level:2, label:"2nd Level Override", overridePercent:5,  color:"#10b981" },
   { level:3, label:"3rd Level Override", overridePercent:2,  color:"#6366f1" },
 ];
-const SEED_MEMBERS = [
-  { id:"m001", name:"Aisha Rahman", phone:"012-3456-789", pin:"1234", birthday:"03-15", points:3200, referredBy:null,   joinedAt:"2024-01-10", referralCode:"AISHA-2024",
-    transactions:[{id:"t1a",pts:500,icon:"🍽️",label:"Weekend Dining",date:"Mar 08",type:"earn"},{id:"t1b",pts:200,icon:"👥",label:"Referral Bonus",date:"Mar 05",type:"earn"},{id:"t1c",pts:-150,icon:"🎁",label:"Free Dessert",date:"Mar 01",type:"redeem"},{id:"t1d",pts:800,icon:"🎂",label:"Birthday Campaign",date:"Feb 22",type:"earn"},{id:"t1e",pts:1850,icon:"⭐",label:"Welcome Bonus",date:"Jan 10",type:"earn"}]},
-  { id:"m002", name:"Daniel Tan",   phone:"016-8877-001", pin:"1234", birthday:"07-22", points:720,  referredBy:"m001", joinedAt:"2024-02-14", referralCode:"DTAN-5528",
-    transactions:[{id:"t2a",pts:720,icon:"⭐",label:"Welcome + First Purchase",date:"Feb 14",type:"earn"}]},
-  { id:"m003", name:"Priya Nair",   phone:"011-2345-678", pin:"1234", birthday:"03-08", points:1680, referredBy:"m001", joinedAt:"2024-03-01", referralCode:"PNAIR-889",
-    transactions:[{id:"t3a",pts:1680,icon:"⭐",label:"Welcome + Monthly Spend",date:"Mar 01",type:"earn"}]},
-  { id:"m004", name:"Kevin Lim",    phone:"017-5544-332", pin:"1234", birthday:"11-30", points:210,  referredBy:"m002", joinedAt:"2024-04-05", referralCode:"KLIM-221",
-    transactions:[{id:"t4a",pts:210,icon:"⭐",label:"Welcome Bonus",date:"Apr 05",type:"earn"}]},
-];
+const SEED_MEMBERS = [];
+const SEED_MERCHANTS = [];
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const genId    = () => Math.random().toString(36).slice(2,9);
@@ -98,6 +90,7 @@ async function loadAll() {
 async function saveMembers(members) { try { await window.storage.set(KEYS.members, JSON.stringify(members), true); } catch(e){console.error(e);} }
 async function saveTiers(tiers)     { try { await window.storage.set(KEYS.tiers,   JSON.stringify(tiers),   true); } catch(e){console.error(e);} }
 async function saveRefLevels(rl)    { try { await window.storage.set(KEYS.refLevels,JSON.stringify(rl),     true); } catch(e){console.error(e);} }
+async function saveMerchants(merchants) { try { await window.storage.set(KEYS.merchants, JSON.stringify(merchants), true); } catch(e){console.error(e);} }
 
 // ─── SHARED UI ────────────────────────────────────────────────────────────────
 function AnimNumber({value}){
@@ -204,6 +197,12 @@ export default function AdminApp() {
     return () => { unsubs.forEach(fn => fn && fn()); clearTimeout(safetyTimer); };
   },[]);
 
+  // ⭐ FIXED HELPER: Changed setMerchants to setMerchantsState to prevent recursion crash
+  const setMerchants = useCallback(async(fn)=>{
+    setSyncing(true);
+    setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
+  }, []);
+
   // Persist helpers (write-through)
   const setMembers = useCallback(async(fn)=>{
     setSyncing(true);
@@ -246,6 +245,77 @@ export default function AdminApp() {
     return newM;
   };
 
+  // ─── HARD RESET FUNCTIONS ──────────────────────────────────────────────────
+
+  // Action 1: Reset Only Points and Transactions (Keeps Members, Merchants, Tiers)
+  const handleResetPoints = async () => {
+    if (!window.confirm("⚠️ This will permanently delete ALL transactions and set ALL member points to 0.\n\nMember profiles (names, phone numbers, merchant assignments, etc.) will be KEPT.\n\nAre you sure you want to continue?")) return;
+    if (!window.confirm("Final confirmation: Reset points and transactions for all members?")) return;
+
+    setSyncing(true);
+    showToast("Resetting points & transactions... please wait.", "success");
+    
+    try {
+      // Map through current members, set points to 0 and empty the transactions array
+      const resetMembers = members.map(m => ({
+        ...m,
+        points: 0,
+        transactions: []
+      }));
+
+      // Save the modified list back to Firebase
+      await saveMembers(resetMembers);
+      setMembersState(resetMembers);
+
+      showToast("✅ All points and transactions have been reset to 0.", "success");
+      
+      // Reload the page to ensure the UI and cache completely refresh
+      setTimeout(() => { window.location.reload(); }, 1500);
+
+    } catch (error) {
+      console.error("Reset points error:", error);
+      showToast("❌ Failed to reset points. Check console for details.", "error");
+      setSyncing(false);
+    }
+  };
+
+  // Action 2: Delete EVERYTHING (Clean Slate - including Members)
+  const handleWipeAll = async () => {
+    if (!window.confirm("⚠️ WARNING: This will permanently delete ALL members, merchants, points, transactions, referral levels, and tier settings from the Firebase database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?")) return;
+    if (!window.confirm("Final confirmation: Are you ABSOLUTELY sure you want to wipe all data?")) return;
+
+    setSyncing(true);
+    showToast("Wiping all data... please wait.", "success");
+    
+    try {
+      // 1. Reset Tiers to Default
+      await saveTiers(DEFAULT_TIERS);
+      setTiersState(DEFAULT_TIERS);
+
+      // 2. Reset Referral Levels to Default
+      await saveRefLevels(DEFAULT_REF);
+      setRefState(DEFAULT_REF);
+
+      // 3. Reset Merchants to Empty
+      await saveMerchants([]);
+      setMerchants([]);
+
+      // 4. Reset Members to Empty
+      await saveMembers([]);
+      setMembersState([]);
+
+      showToast("✅ All members, merchants, and points have been permanently wiped.", "success");
+      
+      // Reload the page to ensure the UI and cache completely refresh from Firebase
+      setTimeout(() => { window.location.reload(); }, 1500);
+
+    } catch (error) {
+      console.error("Wipe error:", error);
+      showToast("❌ Failed to wipe data. Check console for details.", "error");
+      setSyncing(false);
+    }
+  };
+
   if(!pwReady) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
@@ -266,7 +336,7 @@ export default function AdminApp() {
     </div>
   );
 
-  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards,merchants,setMerchants};
+  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards,merchants,setMerchants, handleResetPoints, handleWipeAll };
 
   return (
     <div style={{minHeight:"100vh",background:"#080c12",color:"#e8eaf0",fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex"}}>
@@ -282,10 +352,12 @@ export default function AdminApp() {
         .btn-g:hover{border-color:#3a4a66;color:#ccd;}
         .btn-d{background:#2a1010;color:#ff6b6b;border:1px solid #3a1515;border-radius:10px;padding:9px 18px;font-size:14px;transition:all .2s;font-family:'DM Sans',sans-serif;}
         .btn-d:hover{background:#3a1515;}
+        .btn-danger{background:#1a0a0a;color:#ff6b6b;border:1px solid #4a1a1a;border-radius:10px;padding:9px 18px;font-size:14px;transition:all .2s;font-family:'DM Sans',sans-serif;}
+        .btn-danger:hover{background:#2a1010;border-color:#5a1a1a;}
         .inp{background:#0a0f1a;border:1px solid #1e2535;border-radius:10px;color:#e8eaf0;padding:11px 14px;font-size:14px;font-family:'DM Sans',sans-serif;width:100%;transition:border-color .2s;}
         .inp:focus{border-color:#f59e0b66;}
         .lbl{font-size:11px;font-weight:600;color:#6677aa;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;display:block;}
-        .nav{padding:10px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;display:flex;align-items:center;gap:9px;color:#6677aa;}
+        .nav{padding:10px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;display:flex;alignItems:"center";gap:9px;color:#6677aa;}
         .nav:hover{background:#0e1420;color:#ccd;}
         .nav.on{background:#1a2035;color:#f59e0b;font-weight:600;}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -1438,7 +1510,7 @@ function WelcomeConfig({appConfig,setAppConfig,showToast}){
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 function Config({ctx}){
-  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig}=ctx;
+  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig, handleResetPoints, handleWipeAll}=ctx;
   const [tab,setTab]=useState("tiers");
   const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
   const [pwErr,setPwErr]=useState("");
@@ -1469,12 +1541,12 @@ function Config({ctx}){
       <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-      {["tiers","referral","welcome","password"].map(t=>(
+      {["tiers","referral","welcome","password","danger"].map(t=>(
         <button key={t} onClick={()=>setTab(t)}
           style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
-            background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
-            color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":"🔑 Admin Password"}
+            background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+            color:tab===t.id?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":t==="password"?"🔑 Admin Password":"⚠️ Danger Zone"}
         </button>
       ))}
     </div>
@@ -1528,6 +1600,51 @@ function Config({ctx}){
       ))}
       {pwErr&&<div style={{color:"#f87171",fontSize:13,background:"#2a0d0d",border:"1px solid #5a1a1a",borderRadius:8,padding:"10px 14px"}}>{pwErr}</div>}
       <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px",opacity:pwSaving?0.6:1}} disabled={pwSaving}>{pwSaving?"Saving…":"🔑 Change Password"}</button>
+    </div>}
+
+    {tab==="danger"&&<div className="si card" style={{padding:"28px 30px",maxWidth:480,display:"flex",flexDirection:"column",gap:24,border:"1px solid #4a1a1a",background:"#120a0a"}}>
+      <div>
+        <div style={{fontWeight:700,color:"#ff6b6b",fontSize:16,marginBottom:4}}>⚠️ Danger Zone</div>
+        <div style={{fontSize:13,color:"#aa6666"}}>Destructive actions that cannot be undone.</div>
+      </div>
+      
+      {/* Option 1: Reset Points */}
+      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px", marginBottom: 12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontWeight:600,color:"#e8eaf0",fontSize:14}}>Reset Points & Transactions</div>
+            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Deletes all transactions and sets all member points to 0. <strong>Member profiles are kept.</strong></div>
+          </div>
+          <button 
+            className="btn-danger" 
+            onClick={handleResetPoints}
+            style={{padding:"10px 24px",fontWeight:700,fontSize:13}}
+          >
+            ↻ Reset Points
+          </button>
+        </div>
+      </div>
+
+      {/* Option 2: Delete Everything */}
+      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontWeight:600,color:"#ff6b6b",fontSize:14}}>Delete All Data (Clean Slate)</div>
+            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Permanently deletes ALL members, merchants, points, transactions, and settings.</div>
+          </div>
+          <button 
+            className="btn-danger" 
+            onClick={handleWipeAll}
+            style={{padding:"10px 24px",fontWeight:700,fontSize:13, background:"#3a0a0a"}}
+          >
+            ✕ Wipe All
+          </button>
+        </div>
+      </div>
+
+      <div style={{fontSize:12,color:"#6a3a3a",lineHeight:1.8,borderTop:"1px solid #2a0a0a",paddingTop:16}}>
+        <strong style={{color:"#aa5555"}}>Warning:</strong> These actions are irreversible and will immediately wipe the live data visible to all merchants and members.
+      </div>
     </div>}
   </div>;
 }
@@ -1816,7 +1933,7 @@ function WhatsAppBlast({ctx}){
                       <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
                       <div style={{fontSize:11,color:"#445566"}}>{m.birthday?fmtBirthday(m.birthday,"short")||"":""}</div>
                     </div>
-                    <span style={{fontSize:10,color:t.color,background:`${t.color}18`,padding:"2px 8px",borderRadius:99,fontWeight:700}}>{t.name}</span>
+                    <span style={{fontSize:10,color:t.color,fontWeight:700,background:`${t.color}18`,padding:"2px 8px",borderRadius:99}}>{t.name}</span>
                   </div>
                 );})}
               </div>}
@@ -2078,7 +2195,7 @@ function AllTransactions({ctx,onSelect}){
 
 // ─── MERCHANTS PAGE ───────────────────────────────────────────────────────────
 function MerchantsPage({ctx}){
-  const {members,merchants,setMerchants,showToast}=ctx;
+  const {members, merchants, showToast} = ctx;
   const [tab,setTab]=useState("setup"); // setup | report
   const [newName,setNewName]=useState("");
   const [newCode,setNewCode]=useState("");
@@ -2088,6 +2205,8 @@ function MerchantsPage({ctx}){
   const [err,setErr]=useState("");
   const [saving,setSaving]=useState(false);
   const [qrMerchant,setQrMerchant]=useState(null); // merchant to show QR for
+
+  const setMerchants = ctx.setMerchants;
 
   const saveMerchants=async(next)=>{
     setSaving(true);
