@@ -211,7 +211,7 @@ export default function AdminApp() {
     setRefState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveRefLevels(next).finally(()=>setSyncing(false));return next;});
   },[]);
 
-  // ⭐ FIXED setMerchants to avoid self-reference recursion
+  // ⭐ GLOBAL setMerchants defined strictly ONCE here (using the correct setMerchantsState)
   const setMerchants = useCallback(async(fn)=>{
     setSyncing(true);
     setMerchantsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
