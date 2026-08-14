@@ -210,11 +210,10 @@ export default function AdminApp() {
     setSyncing(true);
     setRefState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveRefLevels(next).finally(()=>setSyncing(false));return next;});
   },[]);
-
-  // ⭐ GLOBAL setMerchants defined strictly ONCE here (using the correct setMerchantsState)
+  // ⭐ setMerchants is defined strictly ONCE at the root level
   const setMerchants = useCallback(async(fn)=>{
     setSyncing(true);
-    setMerchantsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
+    setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
   }, []);
 
   // Award points + cascade referral overrides
