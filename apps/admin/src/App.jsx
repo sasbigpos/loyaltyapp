@@ -1597,6 +1597,168 @@ function WelcomeConfig({appConfig,setAppConfig,showToast}){
 }
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
+
+// ─── DATA RESET ───────────────────────────────────────────────────────────────
+function DataReset({ctx,showToast}){
+  const {setMembers,setMerchants,setTiers,setRefLevels,setRewards}=ctx;
+  const [confirm,setConfirm]=useState(null); // null | "members" | "merchants" | "points" | "all"
+  const [typing,setTyping]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  const CONFIRM_WORD="RESET";
+
+  const actions={
+    members:{
+      label:"Clear All Members",
+      icon:"👥",
+      desc:"Deletes all member records and their transaction history. Cannot be undone.",
+      color:"#f87171",
+      bg:"#2a0d0d",
+      border:"#5a1a1a",
+      run:async()=>{
+        await window.storage.set(KEYS.members,JSON.stringify([]),true);
+        setMembers([]);
+        showToast("All members cleared.","error");
+      },
+    },
+    merchants:{
+      label:"Clear All Merchants",
+      icon:"🏪",
+      desc:"Deletes all merchant records. Member merchant codes are not removed.",
+      color:"#f59e0b",
+      bg:"#1a1208",
+      border:"#4a3010",
+      run:async()=>{
+        await window.storage.set(KEYS.merchants,JSON.stringify([]),true);
+        setMerchants([]);
+        showToast("All merchants cleared.","error");
+      },
+    },
+    points:{
+      label:"Reset All Member Points",
+      icon:"◆",
+      desc:"Sets every member's points balance to 0 and clears all transaction history.",
+      color:"#c084fc",
+      bg:"#1a0d2a",
+      border:"#4a1a5a",
+      run:async()=>{
+        const reset=(prev)=>prev.map(m=>({...m,points:0,transactions:[]}));
+        const existing=ctx.members;
+        const next=reset(existing);
+        await window.storage.set(KEYS.members,JSON.stringify(next),true);
+        setMembers(next);
+        showToast("All points and transactions cleared.","error");
+      },
+    },
+    rewards:{
+      label:"Reset Rewards Catalogue",
+      icon:"🎁",
+      desc:"Restores the rewards catalogue to the default 6 rewards.",
+      color:"#60a5fa",
+      bg:"#0d1a2a",
+      border:"#1a3050",
+      run:async()=>{
+        await window.storage.set(KEYS.rewards,JSON.stringify(DEFAULT_REWARDS),true);
+        setRewards(DEFAULT_REWARDS);
+        showToast("Rewards reset to defaults.","error");
+      },
+    },
+    all:{
+      label:"Full System Reset",
+      icon:"⚠️",
+      desc:"Clears ALL members, merchants, points and resets rewards. This wipes the entire app data.",
+      color:"#ff4444",
+      bg:"#2a0000",
+      border:"#6a0000",
+      run:async()=>{
+        await window.storage.set(KEYS.members,JSON.stringify([]),true);
+        await window.storage.set(KEYS.merchants,JSON.stringify([]),true);
+        await window.storage.set(KEYS.rewards,JSON.stringify(DEFAULT_REWARDS),true);
+        setMembers([]);
+        setMerchants([]);
+        setRewards(DEFAULT_REWARDS);
+        showToast("Full system reset complete.","error");
+      },
+    },
+  };
+
+  const doReset=async()=>{
+    if(typing!==CONFIRM_WORD)return;
+    setSaving(true);
+    try{
+      await actions[confirm].run();
+    }catch(e){
+      showToast("Reset failed — check Firebase connection.","error");
+    }
+    setSaving(false);
+    setConfirm(null);
+    setTyping("");
+  };
+
+  return(
+    <div className="si" style={{maxWidth:560,display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{background:"#1a0808",border:"1px solid #4a1a1a",borderRadius:12,padding:"14px 18px",
+        fontSize:13,color:"#aa7777",lineHeight:1.6}}>
+        ⚠️ <strong style={{color:"#f87171"}}>Danger Zone.</strong> These actions are permanent and cannot be undone.
+        You must type <span style={{fontFamily:"monospace",color:"#ff9999",fontWeight:700,background:"#2a0d0d",
+          padding:"1px 6px",borderRadius:4}}>{CONFIRM_WORD}</span> to confirm each action.
+      </div>
+
+      {/* Action cards */}
+      {Object.entries(actions).map(([key,action])=>(
+        <div key={key} style={{background:action.bg,border:`1px solid ${action.border}`,
+          borderRadius:12,padding:"18px 20px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <span style={{fontSize:18}}>{action.icon}</span>
+                <span style={{fontWeight:700,color:action.color,fontSize:14}}>{action.label}</span>
+                {key==="all"&&<span style={{fontSize:10,background:"#6a0000",color:"#ff6666",
+                  padding:"2px 8px",borderRadius:99,fontWeight:700}}>IRREVERSIBLE</span>}
+              </div>
+              <div style={{fontSize:12,color:"#5566aa",lineHeight:1.5}}>{action.desc}</div>
+            </div>
+            <button onClick={()=>{setConfirm(key);setTyping("");}}
+              style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${action.border}`,
+                background:"transparent",color:action.color,fontSize:12,fontWeight:700,
+                cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+              {key==="all"?"☢️ Full Reset":"🗑️ Clear"}
+            </button>
+          </div>
+
+          {/* Inline confirm */}
+          {confirm===key&&<div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${action.border}`}}>
+            <div style={{fontSize:12,color:"#aa5555",marginBottom:10,lineHeight:1.6}}>
+              Type <span style={{fontFamily:"monospace",color:"#ff9999",fontWeight:700}}>{CONFIRM_WORD}</span> to confirm:
+            </div>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <input className="inp" value={typing} onChange={e=>setTyping(e.target.value.toUpperCase())}
+                placeholder={CONFIRM_WORD} maxLength={5}
+                style={{fontFamily:"monospace",fontWeight:700,fontSize:16,letterSpacing:2,maxWidth:140,
+                  border:`1px solid ${typing===CONFIRM_WORD?"#f87171":"#3a1a1a"}`,
+                  background:"#1a0808",color:"#ff9999"}}
+                onKeyDown={e=>e.key==="Enter"&&doReset()}/>
+              <button onClick={doReset}
+                disabled={typing!==CONFIRM_WORD||saving}
+                style={{padding:"10px 20px",borderRadius:8,background:typing===CONFIRM_WORD?"#cc0000":"#2a0d0d",
+                  border:"none",color:typing===CONFIRM_WORD?"#fff":"#5a2a2a",
+                  fontSize:13,fontWeight:700,cursor:typing===CONFIRM_WORD?"pointer":"not-allowed",
+                  opacity:saving?0.6:1}}>
+                {saving?"Resetting…":"Confirm Reset"}
+              </button>
+              <button onClick={()=>{setConfirm(null);setTyping("");}}
+                style={{padding:"10px 16px",borderRadius:8,background:"transparent",
+                  border:"1px solid #2a3a55",color:"#5566aa",fontSize:13,cursor:"pointer"}}>
+                Cancel
+              </button>
+            </div>
+          </div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Config({ctx}){
   const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig}=ctx;
   const [tab,setTab]=useState("tiers");
@@ -1629,12 +1791,12 @@ function Config({ctx}){
       <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-      {["tiers","referral","welcome","password"].map(t=>(
+      {["tiers","referral","welcome","password","reset"].map(t=>(
         <button key={t} onClick={()=>setTab(t)}
           style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
-            background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
-            color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":"🔑 Admin Password"}
+            background:tab===t?t==="reset"?"linear-gradient(135deg,#ef4444,#dc2626)":"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+            color:tab===t?"#fff":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":t==="password"?"🔑 Admin Password":"🗑️ Reset Data"}
         </button>
       ))}
     </div>
@@ -1670,6 +1832,7 @@ function Config({ctx}){
     </div>}
     {tab==="welcome"&&<WelcomeConfig appConfig={appConfig} setAppConfig={setAppConfig} showToast={showToast}/>}
 
+    {tab==="reset"&&<DataReset ctx={ctx} showToast={showToast}/>}
     {tab==="password"&&<div className="si card" style={{padding:"28px 30px",maxWidth:460,display:"flex",flexDirection:"column",gap:20}}>
       <div>
         <div style={{fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:4}}>Change Admin Password</div>
