@@ -21,8 +21,16 @@ const DEFAULT_REF = [
   { level:2, label:"2nd Level Override", overridePercent:5,  color:"#10b981" },
   { level:3, label:"3rd Level Override", overridePercent:2,  color:"#6366f1" },
 ];
-const SEED_MEMBERS = [];
-const SEED_MERCHANTS = [];
+const SEED_MEMBERS = [
+  { id:"m001", name:"Aisha Rahman", phone:"012-3456-789", pin:"1234", birthday:"03-15", points:3200, referredBy:null,   joinedAt:"2024-01-10", referralCode:"AISHA-2024",
+    transactions:[{id:"t1a",pts:500,icon:"🍽️",label:"Weekend Dining",date:"Mar 08",type:"earn"},{id:"t1b",pts:200,icon:"👥",label:"Referral Bonus",date:"Mar 05",type:"earn"},{id:"t1c",pts:-150,icon:"🎁",label:"Free Dessert",date:"Mar 01",type:"redeem"},{id:"t1d",pts:800,icon:"🎂",label:"Birthday Campaign",date:"Feb 22",type:"earn"},{id:"t1e",pts:1850,icon:"⭐",label:"Welcome Bonus",date:"Jan 10",type:"earn"}]},
+  { id:"m002", name:"Daniel Tan",   phone:"016-8877-001", pin:"1234", birthday:"07-22", points:720,  referredBy:"m001", joinedAt:"2024-02-14", referralCode:"DTAN-5528",
+    transactions:[{id:"t2a",pts:720,icon:"⭐",label:"Welcome + First Purchase",date:"Feb 14",type:"earn"}]},
+  { id:"m003", name:"Priya Nair",   phone:"011-2345-678", pin:"1234", birthday:"03-08", points:1680, referredBy:"m001", joinedAt:"2024-03-01", referralCode:"PNAIR-889",
+    transactions:[{id:"t3a",pts:1680,icon:"⭐",label:"Welcome + Monthly Spend",date:"Mar 01",type:"earn"}]},
+  { id:"m004", name:"Kevin Lim",    phone:"017-5544-332", pin:"1234", birthday:"11-30", points:210,  referredBy:"m002", joinedAt:"2024-04-05", referralCode:"KLIM-221",
+    transactions:[{id:"t4a",pts:210,icon:"⭐",label:"Welcome Bonus",date:"Apr 05",type:"earn"}]},
+];
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const genId    = () => Math.random().toString(36).slice(2,9);
@@ -90,7 +98,6 @@ async function loadAll() {
 async function saveMembers(members) { try { await window.storage.set(KEYS.members, JSON.stringify(members), true); } catch(e){console.error(e);} }
 async function saveTiers(tiers)     { try { await window.storage.set(KEYS.tiers,   JSON.stringify(tiers),   true); } catch(e){console.error(e);} }
 async function saveRefLevels(rl)    { try { await window.storage.set(KEYS.refLevels,JSON.stringify(rl),     true); } catch(e){console.error(e);} }
-async function saveMerchants(merchants) { try { await window.storage.set(KEYS.merchants, JSON.stringify(merchants), true); } catch(e){console.error(e);} }
 
 // ─── SHARED UI ────────────────────────────────────────────────────────────────
 function AnimNumber({value}){
@@ -210,11 +217,6 @@ export default function AdminApp() {
     setSyncing(true);
     setRefState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveRefLevels(next).finally(()=>setSyncing(false));return next;});
   },[]);
-  // ⭐ setMerchants is defined strictly ONCE at the root level
-  const setMerchants = useCallback(async(fn)=>{
-    setSyncing(true);
-    setMerchants(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveMerchants(next).finally(()=>setSyncing(false));return next;});
-  }, []);
 
   // Award points + cascade referral overrides
   const awardPoints = (memberId, basePts, note, merchantCode="", icon="◆") => {
@@ -244,77 +246,6 @@ export default function AdminApp() {
     return newM;
   };
 
-  // ─── HARD RESET FUNCTIONS ──────────────────────────────────────────────────
-
-  // Action 1: Reset Only Points and Transactions (Keeps Members, Merchants, Tiers)
-  const handleResetPoints = async () => {
-    if (!window.confirm("⚠️ This will permanently delete ALL transactions and set ALL member points to 0.\n\nMember profiles (names, phone numbers, merchant assignments, etc.) will be KEPT.\n\nAre you sure you want to continue?")) return;
-    if (!window.confirm("Final confirmation: Reset points and transactions for all members?")) return;
-
-    setSyncing(true);
-    showToast("Resetting points & transactions... please wait.", "success");
-    
-    try {
-      // Map through current members, set points to 0 and empty the transactions array
-      const resetMembers = members.map(m => ({
-        ...m,
-        points: 0,
-        transactions: []
-      }));
-
-      // Save the modified list back to Firebase
-      await saveMembers(resetMembers);
-      setMembersState(resetMembers);
-
-      showToast("✅ All points and transactions have been reset to 0.", "success");
-      
-      // Reload the page to ensure the UI and cache completely refresh
-      setTimeout(() => { window.location.reload(); }, 1500);
-
-    } catch (error) {
-      console.error("Reset points error:", error);
-      showToast("❌ Failed to reset points. Check console for details.", "error");
-      setSyncing(false);
-    }
-  };
-
-  // Action 2: Delete EVERYTHING (Clean Slate - including Members)
-  const handleWipeAll = async () => {
-    if (!window.confirm("⚠️ WARNING: This will permanently delete ALL members, merchants, points, transactions, referral levels, and tier settings from the Firebase database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?")) return;
-    if (!window.confirm("Final confirmation: Are you ABSOLUTELY sure you want to wipe all data?")) return;
-
-    setSyncing(true);
-    showToast("Wiping all data... please wait.", "success");
-    
-    try {
-      // 1. Reset Tiers to Default
-      await saveTiers(DEFAULT_TIERS);
-      setTiersState(DEFAULT_TIERS);
-
-      // 2. Reset Referral Levels to Default
-      await saveRefLevels(DEFAULT_REF);
-      setRefState(DEFAULT_REF);
-
-      // 3. Reset Merchants to Empty
-      await saveMerchants([]);
-      setMerchants([]);
-
-      // 4. Reset Members to Empty
-      await saveMembers([]);
-      setMembersState([]);
-
-      showToast("✅ All members, merchants, and points have been permanently wiped.", "success");
-      
-      // Reload the page to ensure the UI and cache completely refresh from Firebase
-      setTimeout(() => { window.location.reload(); }, 1500);
-
-    } catch (error) {
-      console.error("Wipe error:", error);
-      showToast("❌ Failed to wipe data. Check console for details.", "error");
-      setSyncing(false);
-    }
-  };
-
   if(!pwReady) return (
     <div style={{minHeight:"100vh",background:"#080c12",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
@@ -335,7 +266,7 @@ export default function AdminApp() {
     </div>
   );
 
-  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards,merchants,setMerchants, handleResetPoints, handleWipeAll };
+  const ctx={members,tiers,refLevels,setMembers,setTiers,setRefLevels,awardPoints,enrollMember,showToast,adminPw,setAdminPw,waTemplates,setWaTemplates,appConfig,setAppConfig,rewards,setRewards,merchants,setMerchants};
 
   return (
     <div style={{minHeight:"100vh",background:"#080c12",color:"#e8eaf0",fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex"}}>
@@ -351,12 +282,10 @@ export default function AdminApp() {
         .btn-g:hover{border-color:#3a4a66;color:#ccd;}
         .btn-d{background:#2a1010;color:#ff6b6b;border:1px solid #3a1515;border-radius:10px;padding:9px 18px;font-size:14px;transition:all .2s;font-family:'DM Sans',sans-serif;}
         .btn-d:hover{background:#3a1515;}
-        .btn-danger{background:#1a0a0a;color:#ff6b6b;border:1px solid #4a1a1a;border-radius:10px;padding:9px 18px;font-size:14px;transition:all .2s;font-family:'DM Sans',sans-serif;}
-        .btn-danger:hover{background:#2a1010;border-color:#5a1a1a;}
         .inp{background:#0a0f1a;border:1px solid #1e2535;border-radius:10px;color:#e8eaf0;padding:11px 14px;font-size:14px;font-family:'DM Sans',sans-serif;width:100%;transition:border-color .2s;}
         .inp:focus{border-color:#f59e0b66;}
         .lbl{font-size:11px;font-weight:600;color:#6677aa;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;display:block;}
-        .nav{padding:10px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;display:flex;alignItems:"center";gap:9px;color:#6677aa;}
+        .nav{padding:10px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;display:flex;align-items:center;gap:9px;color:#6677aa;}
         .nav:hover{background:#0e1420;color:#ccd;}
         .nav.on{background:#1a2035;color:#f59e0b;font-weight:600;}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -502,39 +431,199 @@ function Dashboard({ctx,onSelect}){
 
 // ─── MEMBERS ─────────────────────────────────────────────────────────────────
 function Members({ctx,onSelect}){
-  const {members,tiers}=ctx;
+  const {members,tiers,setMembers,showToast,merchants}=ctx;
   const [q,setQ]=useState("");
-  const filtered=members.filter(m=>m.name.toLowerCase().includes(q.toLowerCase())||m.phone.includes(q));
-  return <div className="fi">
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-      <div>
-        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Members</h1>
-        <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>{members.length} enrolled</p>
+  const [editing,setEditing]=useState(null);   // member being edited
+  const [delConfirm,setDelConfirm]=useState(null); // member id pending delete
+  const [editErr,setEditErr]=useState({});
+
+  const filtered=members.filter(m=>
+    m.name.toLowerCase().includes(q.toLowerCase())||m.phone.includes(q)
+  );
+
+  const startEdit=(m,e)=>{
+    e.stopPropagation();
+    setEditing({...m});
+    setEditErr({});
+  };
+
+  const saveEdit=()=>{
+    const e={};
+    if(!editing.name.trim())e.name="Name required";
+    if(editing.phone.replace(/\D/g,"").length<10)e.phone="Valid phone required";
+    if(Object.keys(e).length){setEditErr(e);return;}
+    setMembers(prev=>prev.map(m=>m.id===editing.id?{...editing}:m));
+    showToast(`${editing.name} updated!`);
+    setEditing(null);
+  };
+
+  const deleteMember=(id,e)=>{
+    e.stopPropagation();
+    setDelConfirm(id);
+  };
+
+  const confirmDelete=()=>{
+    const m=members.find(x=>x.id===delConfirm);
+    setMembers(prev=>prev.filter(x=>x.id!==delConfirm));
+    showToast(`${m?.name} deleted.`,"error");
+    setDelConfirm(null);
+  };
+
+  const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  return(
+    <div className="fi">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
+        <div>
+          <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900,color:"#e8eaf0"}}>Members</h1>
+          <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>{members.length} enrolled</p>
+        </div>
+        <input className="inp" placeholder="Search name or phone…" value={q}
+          onChange={e=>setQ(e.target.value)} style={{width:240}}/>
       </div>
-      <input className="inp" placeholder="Search name or phone…" value={q} onChange={e=>setQ(e.target.value)} style={{width:240}}/>
+
+      {/* Edit modal */}
+      {editing&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",
+        display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:20}}
+        onClick={e=>{if(e.target===e.currentTarget){setEditing(null);}}}>
+        <div className="si card" style={{padding:"28px",maxWidth:480,width:"100%",
+          background:"#0e1420",border:"1px solid #1e2535",maxHeight:"90vh",overflowY:"auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#e8eaf0",fontWeight:700}}>Edit Member</div>
+            <button onClick={()=>setEditing(null)}
+              style={{background:"#1a2535",border:"none",color:"#5566aa",borderRadius:"50%",
+                width:30,height:30,fontSize:15,cursor:"pointer",lineHeight:"30px"}}>✕</button>
+          </div>
+
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div>
+              <label className="lbl">Full Name *</label>
+              <input className="inp" value={editing.name}
+                onChange={e=>{setEditing(v=>({...v,name:e.target.value}));setEditErr(er=>({...er,name:""}));}}/>
+              {editErr.name&&<div style={{color:"#f87171",fontSize:12,marginTop:4}}>{editErr.name}</div>}
+            </div>
+            <div>
+              <label className="lbl">Phone *</label>
+              <input className="inp" value={editing.phone}
+                onChange={e=>{setEditing(v=>({...v,phone:fmtPhone(e.target.value)}));setEditErr(er=>({...er,phone:""}));}}/>
+              {editErr.phone&&<div style={{color:"#f87171",fontSize:12,marginTop:4}}>{editErr.phone}</div>}
+            </div>
+            <div>
+              <label className="lbl">PIN (4 digits)</label>
+              <input className="inp" maxLength={4} value={editing.pin||""}
+                onChange={e=>setEditing(v=>({...v,pin:e.target.value.replace(/\D/g,"").slice(0,4)}))}
+                placeholder="Leave blank to keep current"/>
+            </div>
+            <div>
+              <label className="lbl">Date of Birth</label>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <select className="inp"
+                  value={editing.birthday?editing.birthday.split("-")[0]:""}
+                  onChange={e=>{const d=editing.birthday?editing.birthday.split("-")[1]||"01":"01";setEditing(v=>({...v,birthday:e.target.value?`${e.target.value}-${d}`:""}));}}>
+                  <option value="">— Month —</option>
+                  {["01","02","03","04","05","06","07","08","09","10","11","12"].map((mo,i)=>
+                    <option key={mo} value={mo}>{MONTHS[i]}</option>)}
+                </select>
+                <select className="inp"
+                  value={editing.birthday?editing.birthday.split("-")[1]||"":""}
+                  onChange={e=>{const mo=editing.birthday?editing.birthday.split("-")[0]||"01":"01";setEditing(v=>({...v,birthday:mo&&e.target.value?`${mo}-${e.target.value}`:""}));}}>
+                  <option value="">— Day —</option>
+                  {Array.from({length:31},(_,i)=>String(i+1).padStart(2,"0")).map(d=>
+                    <option key={d} value={d}>{parseInt(d)}</option>)}
+                </select>
+              </div>
+            </div>
+            {merchants&&merchants.length>0&&<div>
+              <label className="lbl">Merchant</label>
+              <select className="inp" value={editing.merchantCode||""}
+                onChange={e=>setEditing(v=>({...v,merchantCode:e.target.value}))}>
+                <option value="">— None —</option>
+                {merchants.map(m=><option key={m.code} value={m.code}>{m.name} ({m.code})</option>)}
+              </select>
+            </div>}
+            <div>
+              <label className="lbl">Referral Code</label>
+              <input className="inp" value={editing.referralCode||""} disabled
+                style={{opacity:.5}}/>
+              <div style={{fontSize:11,color:"#2a3a55",marginTop:4}}>Referral code cannot be changed</div>
+            </div>
+          </div>
+
+          <div style={{display:"flex",gap:10,marginTop:20}}>
+            <button className="btn" onClick={saveEdit} style={{flex:1}}>💾 Save Changes</button>
+            <button className="btn-g" onClick={()=>setEditing(null)} style={{flex:1}}>Cancel</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Delete confirm modal */}
+      {delConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",
+        display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:20}}>
+        <div className="si card" style={{padding:"28px",maxWidth:380,width:"100%",
+          background:"#1a0808",border:"1px solid #4a1a1a"}}>
+          <div style={{fontSize:40,textAlign:"center",marginBottom:12}}>⚠️</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#f87171",
+            fontWeight:700,textAlign:"center",marginBottom:8}}>Delete Member?</div>
+          <div style={{fontSize:13,color:"#aa7777",textAlign:"center",marginBottom:20,lineHeight:1.6}}>
+            <strong style={{color:"#ff9999"}}>{members.find(m=>m.id===delConfirm)?.name}</strong> and all their
+            transaction history will be permanently deleted. This cannot be undone.
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button className="btn-d" onClick={confirmDelete} style={{flex:1,fontWeight:800}}>
+              ✕ Yes, Delete
+            </button>
+            <button className="btn-g" onClick={()=>setDelConfirm(null)} style={{flex:1}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Members table */}
+      <div className="card" style={{overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr style={{borderBottom:"1px solid #1a2030"}}>
+            {["Member","Phone","Tier","Points","Birthday","Joined",""].map(h=><th key={h}
+              style={{padding:"14px 16px",textAlign:"left",fontSize:11,fontWeight:600,
+                color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {filtered.map(m=>{
+              const tier=getTier(m.points,tiers);
+              return(
+                <tr key={m.id} className="row"
+                  onClick={()=>onSelect(m.id)}
+                  style={{borderBottom:"1px solid #0e1825",cursor:"pointer"}}>
+                  <td style={{padding:"12px 16px",fontWeight:600,color:"#ccd",fontSize:14}}>
+                    {m.name}
+                    {m.merchantCode&&<div style={{fontSize:10,color:"#10b981",fontFamily:"monospace",marginTop:2}}>{m.merchantCode}</div>}
+                  </td>
+                  <td style={{padding:"12px 16px",color:"#8899bb",fontSize:13}}>{m.phone}</td>
+                  <td style={{padding:"12px 16px"}}><TierBadge tier={tier}/></td>
+                  <td style={{padding:"12px 16px",fontWeight:700,color:tier.color,fontSize:14}}>{m.points.toLocaleString()}</td>
+                  <td style={{padding:"12px 16px",color:"#f59e0b",fontSize:12}}>
+                    {m.birthday?fmtBirthday(m.birthday,"short")||"—":<span style={{color:"#2a3a55"}}>—</span>}
+                  </td>
+                  <td style={{padding:"12px 16px",color:"#5566aa",fontSize:12}}>{m.joinedAt}</td>
+                  <td style={{padding:"12px 16px"}} onClick={e=>e.stopPropagation()}>
+                    <div style={{display:"flex",gap:6}}>
+                      <button className="btn-g" onClick={e=>startEdit(m,e)}
+                        style={{fontSize:11,padding:"5px 10px",whiteSpace:"nowrap"}}>✏️ Edit</button>
+                      <button className="btn-d" onClick={e=>deleteMember(m.id,e)}
+                        style={{fontSize:11,padding:"5px 10px"}}>✕</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filtered.length===0&&<div style={{textAlign:"center",padding:"32px",color:"#2a3a55",fontSize:13}}>
+          No members found.
+        </div>}
+      </div>
     </div>
-    <div className="card" style={{overflow:"hidden"}}>
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr style={{borderBottom:"1px solid #1a2030"}}>
-          {["Member","Phone","Tier","Points","Referred By","Birthday","Joined"].map(h=><th key={h} style={{padding:"14px 20px",textAlign:"left",fontSize:11,fontWeight:600,color:"#445566",letterSpacing:.8,textTransform:"uppercase"}}>{h}</th>)}
-        </tr></thead>
-        <tbody>
-          {filtered.map(m=>{
-            const tier=getTier(m.points,tiers);const ref=members.find(x=>x.id===m.referredBy);
-            return <tr key={m.id} className="row" onClick={()=>onSelect(m.id)} style={{borderBottom:"1px solid #0e1825",cursor:"pointer"}}>
-              <td style={{padding:"14px 20px",fontWeight:600,color:"#ccd",fontSize:14,transition:"background .15s"}}>{m.name}</td>
-              <td style={{padding:"14px 20px",color:"#8899bb",fontSize:13}}>{m.phone}</td>
-              <td style={{padding:"14px 20px"}}><TierBadge tier={tier}/></td>
-              <td style={{padding:"14px 20px",fontWeight:700,color:tier.color,fontSize:14}}>{m.points.toLocaleString()}</td>
-              <td style={{padding:"14px 20px",color:"#6677aa",fontSize:13}}>{ref?ref.name:<span style={{color:"#2a3a55"}}>—</span>}</td>
-              <td style={{padding:"14px 20px",color:"#f59e0b",fontSize:12}}>{m.birthday?fmtBirthday(m.birthday,"short")||"—":<span style={{color:"#2a3a55"}}>—</span>}</td>
-              <td style={{padding:"14px 20px",color:"#5566aa",fontSize:12}}>{m.joinedAt}</td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-    </div>
-  </div>;
+  );
 }
 
 // ─── ENROLL ───────────────────────────────────────────────────────────────────
@@ -1509,7 +1598,7 @@ function WelcomeConfig({appConfig,setAppConfig,showToast}){
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 function Config({ctx}){
-  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig, handleResetPoints, handleWipeAll}=ctx;
+  const {tiers,setTiers,refLevels,setRefLevels,showToast,appConfig,setAppConfig}=ctx;
   const [tab,setTab]=useState("tiers");
   const [pwForm,setPwForm]=useState({current:"",next:"",confirm:""});
   const [pwErr,setPwErr]=useState("");
@@ -1540,12 +1629,12 @@ function Config({ctx}){
       <p style={{color:"#5566aa",fontSize:14,marginTop:4}}>Changes sync live to the Member Portal</p>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-      {["tiers","referral","welcome","password","danger"].map(t=>(
+      {["tiers","referral","welcome","password"].map(t=>(
         <button key={t} onClick={()=>setTab(t)}
           style={{padding:"9px 20px",borderRadius:8,fontSize:13,fontWeight:600,
-            background:tab===t.id?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
-            color:tab===t.id?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":t==="password"?"🔑 Admin Password":"⚠️ Danger Zone"}
+            background:tab===t?"linear-gradient(135deg,#f59e0b,#f97316)":"#0e1420",
+            color:tab===t?"#000":"#5566aa",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+          {t==="tiers"?"🥇 Tiers":t==="referral"?"◈ Referral Overrides":t==="welcome"?"⭐ Welcome Points":"🔑 Admin Password"}
         </button>
       ))}
     </div>
@@ -1599,51 +1688,6 @@ function Config({ctx}){
       ))}
       {pwErr&&<div style={{color:"#f87171",fontSize:13,background:"#2a0d0d",border:"1px solid #5a1a1a",borderRadius:8,padding:"10px 14px"}}>{pwErr}</div>}
       <button className="btn" onClick={changePw} style={{alignSelf:"flex-start",padding:"11px 28px",opacity:pwSaving?0.6:1}} disabled={pwSaving}>{pwSaving?"Saving…":"🔑 Change Password"}</button>
-    </div>}
-
-    {tab==="danger"&&<div className="si card" style={{padding:"28px 30px",maxWidth:480,display:"flex",flexDirection:"column",gap:24,border:"1px solid #4a1a1a",background:"#120a0a"}}>
-      <div>
-        <div style={{fontWeight:700,color:"#ff6b6b",fontSize:16,marginBottom:4}}>⚠️ Danger Zone</div>
-        <div style={{fontSize:13,color:"#aa6666"}}>Destructive actions that cannot be undone.</div>
-      </div>
-      
-      {/* Option 1: Reset Points */}
-      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px", marginBottom: 12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <div style={{fontWeight:600,color:"#e8eaf0",fontSize:14}}>Reset Points & Transactions</div>
-            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Deletes all transactions and sets all member points to 0. <strong>Member profiles are kept.</strong></div>
-          </div>
-          <button 
-            className="btn-danger" 
-            onClick={handleResetPoints}
-            style={{padding:"10px 24px",fontWeight:700,fontSize:13}}
-          >
-            ↻ Reset Points
-          </button>
-        </div>
-      </div>
-
-      {/* Option 2: Delete Everything */}
-      <div style={{background:"#1a0a0a",border:"1px solid #3a1a1a",borderRadius:12,padding:"16px 18px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <div style={{fontWeight:600,color:"#ff6b6b",fontSize:14}}>Delete All Data (Clean Slate)</div>
-            <div style={{fontSize:12,color:"#aa6666",marginTop:4}}>Permanently deletes ALL members, merchants, points, transactions, and settings.</div>
-          </div>
-          <button 
-            className="btn-danger" 
-            onClick={handleWipeAll}
-            style={{padding:"10px 24px",fontWeight:700,fontSize:13, background:"#3a0a0a"}}
-          >
-            ✕ Wipe All
-          </button>
-        </div>
-      </div>
-
-      <div style={{fontSize:12,color:"#6a3a3a",lineHeight:1.8,borderTop:"1px solid #2a0a0a",paddingTop:16}}>
-        <strong style={{color:"#aa5555"}}>Warning:</strong> These actions are irreversible and will immediately wipe the live data visible to all merchants and members.
-      </div>
     </div>}
   </div>;
 }
@@ -1932,7 +1976,7 @@ function WhatsAppBlast({ctx}){
                       <div style={{fontSize:13,fontWeight:600,color:"#ccd"}}>{m.name}</div>
                       <div style={{fontSize:11,color:"#445566"}}>{m.birthday?fmtBirthday(m.birthday,"short")||"":""}</div>
                     </div>
-                    <span style={{fontSize:10,color:t.color,fontWeight:700,background:`${t.color}18`,padding:"2px 8px",borderRadius:99}}>{t.name}</span>
+                    <span style={{fontSize:10,color:t.color,background:`${t.color}18`,padding:"2px 8px",borderRadius:99,fontWeight:700}}>{t.name}</span>
                   </div>
                 );})}
               </div>}
@@ -2194,7 +2238,7 @@ function AllTransactions({ctx,onSelect}){
 
 // ─── MERCHANTS PAGE ───────────────────────────────────────────────────────────
 function MerchantsPage({ctx}){
-  const {members, merchants, showToast} = ctx;
+  const {members,merchants,setMerchants,showToast}=ctx;
   const [tab,setTab]=useState("setup"); // setup | report
   const [newName,setNewName]=useState("");
   const [newCode,setNewCode]=useState("");
@@ -2204,8 +2248,6 @@ function MerchantsPage({ctx}){
   const [err,setErr]=useState("");
   const [saving,setSaving]=useState(false);
   const [qrMerchant,setQrMerchant]=useState(null); // merchant to show QR for
-
-  const setMerchants = ctx.setMerchants;
 
   const saveMerchants=async(next)=>{
     setSaving(true);
